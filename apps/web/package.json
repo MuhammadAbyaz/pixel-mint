@@ -8,13 +8,22 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint --max-warnings 0",
+    "migration:generate": "npx drizzle-kit generate",
+    "migration:run": "npx drizzle-kit migrate",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "@repo/ui": "workspace:*",
+    "@t3-oss/env-core": "^0.13.8",
+    "@t3-oss/env-nextjs": "^0.13.8",
+    "dotenv": "^17.2.2",
+    "drizzle-orm": "^0.44.5",
+    "jiti": "^2.5.1",
     "next": "^15.5.0",
+    "postgres": "^3.4.7",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "zod": "^4.1.8"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
@@ -22,7 +31,9 @@
     "@types/node": "^22.15.3",
     "@types/react": "19.1.0",
     "@types/react-dom": "19.1.1",
+    "drizzle-kit": "^0.31.4",
     "eslint": "^9.34.0",
+    "tsx": "^4.20.5",
     "typescript": "5.9.2"
   }
 }
