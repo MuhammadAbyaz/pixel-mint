@@ -109,9 +109,6 @@ importers:
       drizzle-kit:
         specifier: ^0.31.4
         version: 0.31.4
-      env-nextjs:
-        specifier: link:@types/@t3-oss/env-nextjs
-        version: link:@types/@t3-oss/env-nextjs
       eslint:
         specifier: ^9.34.0
         version: 9.34.0(jiti@2.5.1)

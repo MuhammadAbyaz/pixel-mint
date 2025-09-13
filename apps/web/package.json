@@ -32,7 +32,6 @@
     "@types/react": "19.1.0",
     "@types/react-dom": "19.1.1",
     "drizzle-kit": "^0.31.4",
-    "env-nextjs": "link:@types/@t3-oss/env-nextjs",
     "eslint": "^9.34.0",
     "tsx": "^4.20.5",
     "typescript": "5.9.2"
