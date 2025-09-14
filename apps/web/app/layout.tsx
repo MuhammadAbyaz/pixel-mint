@@ -3,6 +3,9 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { DATA } from "../constants/data";
 import { MiniNavbar } from "@/components/navigation/MiniNavbar";
+import { Toaster } from "@/components/ui/sonner";
+import { SessionProvider } from "next-auth/react";
+import { auth } from "../auth";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -18,17 +21,21 @@ export const metadata: Metadata = {
   description: DATA.description,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth();
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        <MiniNavbar />
-        {children}
-      </body>
+      <SessionProvider session={session}>
+        <body className={`${geistSans.variable} ${geistMono.variable}`}>
+          <MiniNavbar />
+          <Toaster richColors />
+          {children}
+        </body>
+      </SessionProvider>
     </html>
   );
 }

@@ -6,6 +6,9 @@ import { CanvasRevealEffect } from "@/components/reveal/canvas-reveal";
 import { EmailStep } from "@/components/auth/EmailStep";
 import { CodeStep } from "@/components/auth/CodeStep";
 import { SuccessStep } from "@/components/auth/SuccessStep";
+import { toast } from "sonner";
+import { STEPS } from "@/constants/steps";
+import { useSession } from "next-auth/react";
 
 interface SignInPageProps {
   className?: string;
@@ -13,18 +16,21 @@ interface SignInPageProps {
 
 export const SignInPage = ({ className }: SignInPageProps) => {
   const [email, setEmail] = useState("");
-  const [step, setStep] = useState<"email" | "code" | "success">("email");
+  const [step, setStep] = useState<(typeof STEPS)[keyof typeof STEPS]>(
+    STEPS.EMAIL,
+  );
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const codeInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [initialCanvasVisible, setInitialCanvasVisible] = useState(true);
   const [reverseCanvasVisible, setReverseCanvasVisible] = useState(false);
+  const { update } = useSession();
 
   const goToCodeStep = () => {
-    if (email) setStep("code");
+    if (email) setStep(STEPS.CODE);
   };
 
   useEffect(() => {
-    if (step === "code") {
+    if (step === STEPS.CODE) {
       const t = setTimeout(() => {
         codeInputRefs.current[0]?.focus();
       }, 500);
@@ -32,7 +38,8 @@ export const SignInPage = ({ className }: SignInPageProps) => {
     }
   }, [step]);
 
-  const handleCodeChange = (index: number, value: string) => {
+  const handleCodeChange = async (index: number, value: string) => {
+    const callbackUrl = "http://localhost:3000";
     if (value.length <= 1) {
       const newCode = [...code];
       newCode[index] = value;
@@ -42,8 +49,23 @@ export const SignInPage = ({ className }: SignInPageProps) => {
         const isComplete = newCode.every((d) => d.length === 1);
         if (isComplete) {
           setReverseCanvasVisible(true);
-          setTimeout(() => setInitialCanvasVisible(false), 50);
-          setTimeout(() => setStep("success"), 2000);
+          const res = await fetch(
+            `/api/auth/callback/loops?email=${encodeURIComponent(
+              email,
+            )}&token=${newCode.join("")}${callbackUrl ? `&callbackUrl=${callbackUrl}` : ""}`,
+          );
+          if (res?.ok && res.url.includes("error")) {
+            toast.error("Invalid or expired OTP, please try again.");
+            setCode(["", "", "", "", "", ""]);
+            setReverseCanvasVisible(false);
+            setInitialCanvasVisible(true);
+            codeInputRefs.current[0]?.focus();
+            return;
+          } else if (res?.ok) {
+            setStep(STEPS.SUCCESS);
+            setInitialCanvasVisible(false);
+            await update();
+          }
         }
       }
     }
@@ -58,7 +80,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
   };
 
   const handleBackClick = () => {
-    setStep("email");
+    setStep(STEPS.EMAIL);
     setCode(["", "", "", "", "", ""]);
     setReverseCanvasVisible(false);
     setInitialCanvasVisible(true);
@@ -108,14 +130,14 @@ export const SignInPage = ({ className }: SignInPageProps) => {
           <div className="flex-1 flex flex-col justify-center items-center">
             <div className="w-full mt-[150px] max-w-sm">
               <AnimatePresence mode="wait">
-                {step === "email" && (
+                {step === STEPS.EMAIL && (
                   <EmailStep
                     email={email}
                     onChange={setEmail}
                     onSubmit={goToCodeStep}
                   />
                 )}
-                {step === "code" && (
+                {step === STEPS.CODE && (
                   <CodeStep
                     code={code}
                     onCodeChange={handleCodeChange}
@@ -124,7 +146,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                     onBack={handleBackClick}
                   />
                 )}
-                {step === "success" && <SuccessStep />}
+                {step === STEPS.SUCCESS && <SuccessStep />}
               </AnimatePresence>
             </div>
           </div>

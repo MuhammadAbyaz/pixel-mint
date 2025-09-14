@@ -2,6 +2,7 @@
 import { motion } from "framer-motion";
 import React from "react";
 import { TermsNotice } from "@/components/common/TermsNotice";
+import { signIn } from "next-auth/react";
 
 interface EmailStepProps {
   email: string;
@@ -9,14 +10,19 @@ interface EmailStepProps {
   onSubmit: () => void;
 }
 
-export const EmailStep: React.FC<EmailStepProps> = ({
-  email,
-  onChange,
-  onSubmit,
-}) => {
-  const handleSubmit = (e: React.FormEvent) => {
+export const EmailStep: React.FC<EmailStepProps> = (formData) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit();
+    const response = await signIn("loops", {
+      email: formData.email,
+      redirect: false,
+    });
+    if (response?.ok) formData.onSubmit();
+  };
+  const handleGoogleSignIn = () => {
+    signIn("google", {
+      redirectTo: "/",
+    });
   };
 
   return (
@@ -37,7 +43,10 @@ export const EmailStep: React.FC<EmailStepProps> = ({
         </p>
       </div>
       <div className="space-y-4">
-        <button className="backdrop-blur-[2px] w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full py-3 px-4 transition-colors cursor-pointer">
+        <button
+          className="backdrop-blur-[2px] w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full py-3 px-4 transition-colors cursor-pointer"
+          onClick={handleGoogleSignIn}
+        >
           <span className="text-lg">G</span>
           <span>Sign in with Google</span>
         </button>
@@ -51,8 +60,8 @@ export const EmailStep: React.FC<EmailStepProps> = ({
             <input
               type="email"
               placeholder="info@gmail.com"
-              value={email}
-              onChange={(e) => onChange(e.target.value)}
+              value={formData.email}
+              onChange={(e) => formData.onChange(e.target.value)}
               className="w-full backdrop-blur-[1px] text-white border-1 border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
               required
             />

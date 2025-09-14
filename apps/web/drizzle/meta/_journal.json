@@ -8,6 +8,48 @@
       "when": 1757763201733,
       "tag": "0000_users_table",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1757771759273,
+      "tag": "0001_add_auth_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1757772000196,
+      "tag": "0002_add_sessions_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1757832188096,
+      "tag": "0003_add_verfication_token_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1757835718693,
+      "tag": "0004_add_primary_column_verfication_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1757842670599,
+      "tag": "0005_add_default_user_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1757842945428,
+      "tag": "0006_add_default_user_name_function",
+      "breakpoints": true
     }
   ]
 }
