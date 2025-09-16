@@ -1,0 +1,1 @@
+ALTER TABLE "verificationTokens" ADD COLUMN "id" text PRIMARY KEY NOT NULL;
