@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { Edit2 } from "lucide-react";
 import type { UserProfile } from "@/actions/user.actions";
+import EditProfileDialog from "./EditProfileDialog";
 
 // Image constants from Figma
 const imgRectangle31 =
@@ -32,6 +33,7 @@ export default function ProfileClient({
   const [activeTab, setActiveTab] = useState<"collections" | "favorites">(
     "collections",
   );
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const displayedItems = activeTab === "collections" ? collections : favorites;
 
@@ -51,7 +53,10 @@ export default function ProfileClient({
               />
               {/* Edit Button - Only show for owner */}
               {isOwner && (
-                <button className="absolute bottom-2 right-2 bg-[#037ae5] hover:bg-[#0366c7] text-white p-2.5 sm:p-3 rounded-full transition-all duration-300 hover:scale-110 shadow-lg hover:shadow-blue-500/50">
+                <button
+                  onClick={() => setIsEditDialogOpen(true)}
+                  className="absolute bottom-2 right-2 bg-[#037ae5] hover:bg-[#0366c7] text-white p-2.5 sm:p-3 rounded-full transition-all duration-300 hover:scale-110 shadow-lg hover:shadow-blue-500/50"
+                >
                   <Edit2 className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
               )}
@@ -164,6 +169,15 @@ export default function ProfileClient({
           </div>
         )}
       </main>
+
+      {/* Edit Profile Dialog */}
+      {isOwner && (
+        <EditProfileDialog
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          user={user}
+        />
+      )}
     </div>
   );
 }

@@ -11,6 +11,9 @@ export const env = createEnv({
     AUTH_LOOPS_TRANSACTIONAL_ID: z.string().min(1),
     MAX_TOKEN_AGE: z.number().default(20 * 60),
     LOOPS_TRANSACTION_ENDPOINT: z.string(),
+    SUPABASE_URL: z.string().url(),
+    SUPABASE_ANON_KEY: z.string(),
+    SUPABASE_BUCKET_NAME: z.string(),
   },
   client: {},
   runtimeEnv: {
@@ -22,5 +25,8 @@ export const env = createEnv({
     AUTH_LOOPS_TRANSACTIONAL_ID: process.env.AUTH_LOOPS_TRANSACTIONAL_ID,
     MAX_TOKEN_AGE: Number(process.env.MAX_TOKEN_AGE),
     LOOPS_TRANSACTION_ENDPOINT: process.env.LOOPS_TRANSACTION_ENDPOINT,
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
+    SUPABASE_BUCKET_NAME: process.env.SUPABASE_BUCKET_NAME,
   },
 });
