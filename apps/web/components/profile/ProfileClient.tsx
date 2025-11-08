@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { Edit2 } from "lucide-react";
-import type { UserProfile } from "./actions";
+import type { UserProfile } from "@/actions/user.actions";
 
 // Image constants from Figma
 const imgRectangle31 =
@@ -32,7 +32,6 @@ export default function ProfileClient({
   const [activeTab, setActiveTab] = useState<"collections" | "favorites">(
     "collections",
   );
-  console.log(user);
 
   const displayedItems = activeTab === "collections" ? collections : favorites;
 
