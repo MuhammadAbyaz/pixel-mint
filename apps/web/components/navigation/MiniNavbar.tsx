@@ -55,7 +55,7 @@ export function MiniNavbar() {
       onClick={() => (window.location.href = "/auth/login")}
       className="px-4 py-2 sm:px-3 text-xs sm:text-sm border border-[#333] bg-[rgba(31,31,31,0.62)] text-gray-300 rounded-full hover:border-white/50 hover:text-white transition-colors duration-200 w-full sm:w-auto cursor-pointer"
     >
-      LogIn
+      Login
     </button>
   );
 
@@ -66,7 +66,7 @@ export function MiniNavbar() {
         onClick={() => (window.location.href = "/auth/login")}
         className="relative z-10 px-4 py-2 sm:px-3 text-xs sm:text-sm font-semibold text-black bg-gradient-to-br from-gray-100 to-gray-300 rounded-full hover:from-gray-200 hover:to-gray-400 transition-all duration-200 w-full sm:w-auto cursor-pointer"
       >
-        Signup
+        Sign Up
       </button>
     </div>
   );
@@ -149,7 +149,7 @@ export function MiniNavbar() {
               ))}
             </nav>
             <a
-              href="/profile"
+              href={`/profile/${user.id}`}
               className="w-full text-center px-4 py-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors text-sm"
               onClick={() => setIsOpen(false)}
             >
