@@ -1,3 +1,18 @@
+# 🖼️ NFT Marketplace with Blockchain Security
+
+A decentralized **NFT Marketplace** built with **blockchain security** at its core.  
+This project allows users to **mint, buy, sell, and trade NFTs** securely using **smart contracts**, ensuring **transparency, immutability, and protection** from tampering or forgery.
+
+---
+
+## 🚀 Features
+
+### 🔐 Core Functionalities
+- **Mint NFTs** — Create and upload unique NFTs stored on IPFS.  
+- **Buy & Sell NFTs** — Seamless transactions via smart contracts.  
+- **Secure Wallet Login** — MetaMask or WalletConnect authentication.  
+- **Blockchain-Powered Security** — Transparent and tamper-proof records.  
+- **Transaction History** — View verifiable on-chain activity.
 # Turborepo starter
 
 This Turborepo starter is maintained by the Turborepo core team.
