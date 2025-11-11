@@ -1,5 +1,6 @@
 import {
   integer,
+  numeric,
   pgTable,
   primaryKey,
   text,
@@ -83,6 +84,25 @@ export const collections = pgTable("collections", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   categories: text("categories").array(),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const nfts = pgTable("nfts", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  image: text("image").notNull(),
+  price: numeric("price", { precision: 20, scale: 8 }).notNull(),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  collectionId: text("collectionId").references(() => collections.id, {
+    onDelete: "set null",
+  }),
+  isListed: timestamp("isListed", { mode: "date" }),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
 });

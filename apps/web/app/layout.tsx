@@ -6,6 +6,7 @@ import { MiniNavbar } from "@/components/navigation/MiniNavbar";
 import { Toaster } from "@/components/ui/sonner";
 import { SessionProvider } from "next-auth/react";
 import { auth } from "../auth";
+import FloatingCreateButton from "@/components/CreateButton";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -34,6 +35,7 @@ export default async function RootLayout({
           <MiniNavbar />
           <Toaster richColors />
           {children}
+          <FloatingCreateButton />
         </body>
       </SessionProvider>
     </html>

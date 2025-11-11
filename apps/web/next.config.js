@@ -9,6 +9,11 @@ const nextConfig = {
   images: {
     domains: ["sntozyicoeoifambietu.supabase.co", "lh3.googleusercontent.com"],
   },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "4mb",
+    },
+  },
 };
 
 export default nextConfig;

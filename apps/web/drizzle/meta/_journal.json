@@ -57,6 +57,13 @@
       "when": 1762872454687,
       "tag": "0007_colorful_cassandra_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1762875151032,
+      "tag": "0008_harsh_payback",
+      "breakpoints": true
     }
   ]
 }
