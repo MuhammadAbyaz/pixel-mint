@@ -1,9 +1,10 @@
 "use client";
 import React, { useState } from "react";
 import Link from "next/link";
-import { Edit2 } from "lucide-react";
+import { Edit2, Plus } from "lucide-react";
 import type { UserProfile } from "@/actions/user.actions";
 import EditProfileDialog from "./EditProfileDialog";
+import FloatingCreateButton from "../CreateButton";
 
 // Image constants from Figma
 const imgRectangle31 =

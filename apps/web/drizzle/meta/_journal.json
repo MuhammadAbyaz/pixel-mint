@@ -50,6 +50,20 @@
       "when": 1757842945428,
       "tag": "0006_add_default_user_name_function",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1762872454687,
+      "tag": "0007_colorful_cassandra_nova",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1762875151032,
+      "tag": "0008_harsh_payback",
+      "breakpoints": true
     }
   ]
 }
