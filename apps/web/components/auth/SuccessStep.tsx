@@ -1,8 +1,14 @@
 "use client";
 import { motion } from "framer-motion";
 import React from "react";
+import { useRouter } from 'next/navigation';
 
-export const SuccessStep: React.FC = () => (
+export const SuccessStep: React.FC = () => {
+  const router = useRouter();
+  const handleRedirection = ()=>{
+    router.push("/")
+  }
+  return(
   <motion.div
     key="success-step"
     initial={{ opacity: 0, y: 50 }}
@@ -42,8 +48,9 @@ export const SuccessStep: React.FC = () => (
       animate={{ opacity: 1 }}
       transition={{ delay: 1 }}
       className="w-full rounded-full bg-white text-black font-medium py-3 hover:bg-white/90 transition-colors"
+      onClick={handleRedirection}
     >
       Continue to Dashboard
     </motion.button>
   </motion.div>
-);
+)};
