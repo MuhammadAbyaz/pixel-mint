@@ -78,6 +78,13 @@
       "when": 1763213122290,
       "tag": "0010_green_gorgon",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1763230448070,
+      "tag": "0011_elite_norman_osborn",
+      "breakpoints": true
     }
   ]
 }
