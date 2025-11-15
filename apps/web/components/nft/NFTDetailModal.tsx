@@ -9,7 +9,12 @@ import {
   ShoppingCart,
   CheckCircle2,
 } from "lucide-react";
-import { getNFTById, toggleLikeNFT, purchaseNFT } from "@/actions/nft.actions";
+import {
+  getNFTById,
+  toggleLikeNFT,
+  purchaseNFT,
+  checkIfLiked,
+} from "@/actions/nft.actions";
 import { getCollectionById } from "@/actions/collection.actions";
 import { getUserById } from "@/actions/user.actions";
 import type { NFT } from "@/actions/nft.actions";
@@ -34,6 +39,11 @@ type NFTDetailModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentUserId?: string | null;
+  onLikeSuccess?: (updatedNFT: {
+    id: string;
+    likes: number;
+    isLiked: boolean;
+  }) => void | Promise<void>;
 };
 
 export default function NFTDetailModal({
@@ -41,6 +51,7 @@ export default function NFTDetailModal({
   open,
   onOpenChange,
   currentUserId = null,
+  onLikeSuccess,
 }: NFTDetailModalProps) {
   const { resolvedTheme } = useTheme();
   const [nft, setNft] = useState<NFT | null>(null);
@@ -49,6 +60,7 @@ export default function NFTDetailModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
   const [isBuying, setIsBuying] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
   const [blockchainExpanded, setBlockchainExpanded] = useState(true);
   const [priceHistoryExpanded, setPriceHistoryExpanded] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -93,13 +105,29 @@ export default function NFTDetailModal({
   useEffect(() => {
     if (open && nftId) {
       loadNFTDetails();
+      loadLikeStatus();
     } else {
       setNft(null);
       setCollection(null);
       setOwner(null);
+      setIsLiked(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, nftId]);
+  }, [open, nftId, currentUserId]);
+
+  const loadLikeStatus = async () => {
+    if (!nftId || !currentUserId) {
+      setIsLiked(false);
+      return;
+    }
+    try {
+      const liked = await checkIfLiked(nftId);
+      setIsLiked(liked);
+    } catch (error) {
+      console.error("Error loading like status:", error);
+      setIsLiked(false);
+    }
+  };
 
   const loadNFTDetails = async () => {
     if (!nftId) return;
@@ -132,8 +160,18 @@ export default function NFTDetailModal({
     try {
       const result = await toggleLikeNFT(nft.id);
       if (result.success) {
-        setNft({ ...nft, likes: result.likes });
-        toast.success("Liked!");
+        const updatedNFT = { ...nft, likes: result.likes };
+        setNft(updatedNFT);
+        setIsLiked(result.isLiked);
+        toast.success(result.isLiked ? "Liked!" : "Unliked!");
+        // Call the callback to refresh trending data and update NFT lists
+        if (onLikeSuccess) {
+          await onLikeSuccess({
+            id: nft.id,
+            likes: result.likes,
+            isLiked: result.isLiked,
+          });
+        }
       } else {
         toast.error(result.error || "Failed to like NFT");
       }
@@ -253,11 +291,27 @@ export default function NFTDetailModal({
                       <button
                         onClick={handleLike}
                         disabled={isLiking}
-                        className="flex items-center gap-2 bg-gradient-to-r from-primary/10 to-primary/5 rounded-full px-4 py-2 flex-shrink-0 hover:from-primary/20 hover:to-primary/10 transition-all duration-300 disabled:opacity-50 cursor-pointer border border-primary/20 shadow-sm hover:shadow-md"
-                        title={isLiking ? "Liking..." : "Like this NFT"}
+                        className={`flex items-center gap-2 rounded-full px-4 py-2 flex-shrink-0 transition-all duration-300 disabled:opacity-50 cursor-pointer border shadow-sm hover:shadow-md ${
+                          isLiked
+                            ? "bg-primary/20 border-primary/40 hover:bg-primary/30"
+                            : "bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20 hover:from-primary/20 hover:to-primary/10"
+                        }`}
+                        title={
+                          isLiking
+                            ? isLiked
+                              ? "Unliking..."
+                              : "Liking..."
+                            : isLiked
+                              ? "Unlike this NFT"
+                              : "Like this NFT"
+                        }
                       >
                         <Heart
-                          className={`w-4 h-4 text-primary fill-primary transition-transform ${isLiking ? "animate-pulse scale-110" : "hover:scale-110"}`}
+                          className={`w-4 h-4 transition-transform ${
+                            isLiked
+                              ? "text-primary fill-primary"
+                              : "text-primary fill-transparent"
+                          } ${isLiking ? "animate-pulse scale-110" : "hover:scale-110"}`}
                         />
                         <span className="text-foreground text-sm font-semibold">
                           {nft.likes >= 1000

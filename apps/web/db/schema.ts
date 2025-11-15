@@ -109,3 +109,23 @@ export const nfts = pgTable("nfts", {
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
 });
+
+export const nftLikes = pgTable(
+  "nft_likes",
+  {
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    nftId: text("nftId")
+      .notNull()
+      .references(() => nfts.id, { onDelete: "cascade" }),
+    createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  },
+  (nftLike) => [
+    {
+      compoundKey: primaryKey({
+        columns: [nftLike.userId, nftLike.nftId],
+      }),
+    },
+  ],
+);

@@ -16,12 +16,13 @@ type CollectionDetailClientProps = {
 
 export default function CollectionDetailClient({
   collection,
-  nfts,
+  nfts: initialNFTs,
   owner,
   currentUserId = null,
 }: CollectionDetailClientProps) {
   const [selectedNFTId, setSelectedNFTId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [nfts, setNfts] = useState<NFT[]>(initialNFTs);
 
   return (
     <div className="relative min-h-screen w-full bg-background">
@@ -183,6 +184,16 @@ export default function CollectionDetailClient({
           open={isModalOpen}
           onOpenChange={setIsModalOpen}
           currentUserId={currentUserId}
+          onLikeSuccess={async (updatedNFT) => {
+            // Update the NFT in the collection's NFTs list
+            setNfts((prev) =>
+              prev.map((nft) =>
+                nft.id === updatedNFT.id
+                  ? { ...nft, likes: updatedNFT.likes }
+                  : nft
+              )
+            );
+          }}
         />
       </main>
     </div>

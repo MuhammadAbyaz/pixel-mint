@@ -2,8 +2,8 @@
 
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { users, collections, nfts } from "@/db/schema";
+import { eq, sql, desc } from "drizzle-orm";
 import { supabase } from "@/lib/supabase";
 import { env } from "@/env";
 import { revalidatePath } from "next/cache";
@@ -208,5 +208,48 @@ export async function updateProfile(
   } catch (error) {
     console.error("Error updating profile:", error);
     return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+export type TrendingCreator = UserProfile & {
+  totalLikes: number;
+  collectionCount: number;
+};
+
+export async function getTrendingCreators(
+  limit: number = 4,
+): Promise<TrendingCreator[]> {
+  try {
+    const trendingCreators = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        image: users.image,
+        emailVerified: users.emailVerified,
+        totalLikes: sql<number>`COALESCE(SUM(CASE WHEN ${nfts.isListed} IS NOT NULL THEN ${nfts.likes} ELSE 0 END), 0)`.as("totalLikes"),
+        collectionCount: sql<number>`COUNT(DISTINCT ${collections.id})`.as("collectionCount"),
+      })
+      .from(users)
+      .leftJoin(collections, eq(users.id, collections.userId))
+      .leftJoin(nfts, eq(collections.id, nfts.collectionId))
+      .groupBy(users.id)
+      .orderBy(desc(sql<number>`COALESCE(SUM(CASE WHEN ${nfts.isListed} IS NOT NULL THEN ${nfts.likes} ELSE 0 END), 0)`))
+      .limit(limit);
+
+    return trendingCreators
+      .filter((creator) => Number(creator.totalLikes) > 0)
+      .map((creator) => ({
+        id: creator.id,
+        name: creator.name,
+        email: creator.email,
+        image: creator.image,
+        emailVerified: creator.emailVerified,
+        totalLikes: Number(creator.totalLikes) || 0,
+        collectionCount: Number(creator.collectionCount) || 0,
+      }));
+  } catch (error) {
+    console.error("Error fetching trending creators:", error);
+    return [];
   }
 }

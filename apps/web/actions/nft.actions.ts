@@ -2,10 +2,10 @@
 
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { nfts } from "@/db/schema";
+import { nfts, nftLikes } from "@/db/schema";
 import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
-import { eq, desc, isNotNull } from "drizzle-orm";
+import { eq, desc, isNotNull, and } from "drizzle-orm";
 
 export type NFT = {
   id: string;
@@ -198,33 +198,100 @@ export async function getNFTById(nftId: string): Promise<NFT | null> {
 
 export async function toggleLikeNFT(
   nftId: string,
-): Promise<{ success: boolean; likes: number; error?: string }> {
+): Promise<{ success: boolean; likes: number; isLiked: boolean; error?: string }> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return { success: false, likes: 0, error: "Unauthorized" };
+      return { success: false, likes: 0, isLiked: false, error: "Unauthorized" };
     }
 
     const [nft] = await db.select().from(nfts).where(eq(nfts.id, nftId));
 
     if (!nft) {
-      return { success: false, likes: 0, error: "NFT not found" };
+      return { success: false, likes: 0, isLiked: false, error: "NFT not found" };
     }
 
-    // Increment likes (users can like their own NFTs too!)
-    const newLikes = nft.likes + 1;
-    await db
-      .update(nfts)
-      .set({ likes: newLikes, updatedAt: new Date() })
-      .where(eq(nfts.id, nftId));
+    // Check if user has already liked this NFT
+    const [existingLike] = await db
+      .select()
+      .from(nftLikes)
+      .where(
+        and(
+          eq(nftLikes.userId, session.user.id),
+          eq(nftLikes.nftId, nftId)
+        )
+      )
+      .limit(1);
 
-    revalidatePath("/");
-    revalidatePath(`/nft/${nftId}`);
+    if (existingLike) {
+      // Unlike: remove the like record and decrement likes
+      await db
+        .delete(nftLikes)
+        .where(
+          and(
+            eq(nftLikes.userId, session.user.id),
+            eq(nftLikes.nftId, nftId)
+          )
+        );
 
-    return { success: true, likes: newLikes };
+      const newLikes = Math.max(0, nft.likes - 1);
+      await db
+        .update(nfts)
+        .set({ likes: newLikes, updatedAt: new Date() })
+        .where(eq(nfts.id, nftId));
+
+      revalidatePath("/");
+      revalidatePath(`/nft/${nftId}`);
+
+      return { success: true, likes: newLikes, isLiked: false };
+    } else {
+      // Like: add the like record and increment likes
+      await db.insert(nftLikes).values({
+        userId: session.user.id,
+        nftId: nftId,
+      });
+
+      const newLikes = nft.likes + 1;
+      await db
+        .update(nfts)
+        .set({ likes: newLikes, updatedAt: new Date() })
+        .where(eq(nfts.id, nftId));
+
+      revalidatePath("/");
+      revalidatePath(`/nft/${nftId}`);
+
+      return { success: true, likes: newLikes, isLiked: true };
+    }
   } catch (error) {
     console.error("Error toggling like:", error);
-    return { success: false, likes: 0, error: "Failed to like NFT" };
+    return { success: false, likes: 0, isLiked: false, error: "Failed to like NFT" };
+  }
+}
+
+export async function checkIfLiked(
+  nftId: string,
+): Promise<boolean> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return false;
+    }
+
+    const [like] = await db
+      .select()
+      .from(nftLikes)
+      .where(
+        and(
+          eq(nftLikes.userId, session.user.id),
+          eq(nftLikes.nftId, nftId)
+        )
+      )
+      .limit(1);
+
+    return !!like;
+  } catch (error) {
+    console.error("Error checking if liked:", error);
+    return false;
   }
 }
 
