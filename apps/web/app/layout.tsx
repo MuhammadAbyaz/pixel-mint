@@ -4,8 +4,8 @@ import "./globals.css";
 import { DATA } from "../constants/data";
 import { MiniNavbar } from "@/components/navigation/MiniNavbar";
 import { Toaster } from "@/components/ui/sonner";
-import { SessionProvider } from "next-auth/react";
 import { auth } from "../auth";
+import { Providers } from "@/components/providers";
 import FloatingCreateButton from "@/components/CreateButton";
 
 const geistSans = localFont({
@@ -29,15 +29,15 @@ export default async function RootLayout({
 }>) {
   const session = await auth();
   return (
-    <html lang="en">
-      <SessionProvider session={session}>
-        <body className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+        <Providers session={session}>
           <MiniNavbar />
           <Toaster richColors />
           {children}
           <FloatingCreateButton />
-        </body>
-      </SessionProvider>
+        </Providers>
+      </body>
     </html>
   );
 }

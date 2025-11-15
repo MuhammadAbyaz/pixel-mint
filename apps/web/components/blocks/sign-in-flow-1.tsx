@@ -9,6 +9,7 @@ import { SuccessStep } from "@/components/auth/SuccessStep";
 import { toast } from "sonner";
 import { STEPS } from "@/constants/steps";
 import { useSession } from "next-auth/react";
+import { useTheme } from "next-themes";
 
 interface SignInPageProps {
   className?: string;
@@ -24,6 +25,27 @@ export const SignInPage = ({ className }: SignInPageProps) => {
   const [initialCanvasVisible, setInitialCanvasVisible] = useState(true);
   const [reverseCanvasVisible, setReverseCanvasVisible] = useState(false);
   const { update } = useSession();
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // Get theme-aware colors for canvas effect
+  // In dark mode: use white (255, 255, 255)
+  // In light mode: use dark color (approximately foreground color)
+  const canvasColors = React.useMemo(() => {
+    if (!mounted) return [[255, 255, 255], [255, 255, 255]];
+    const isDark = resolvedTheme === "dark";
+    if (isDark) {
+      return [[255, 255, 255], [255, 255, 255]];
+    } else {
+      // Light mode: use a dark color that contrasts with light background
+      // Using a dark gray/black color for visibility
+      return [[36, 36, 36], [36, 36, 36]];
+    }
+  }, [resolvedTheme, mounted]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const goToCodeStep = () => {
     if (email) setStep(STEPS.CODE);
@@ -89,7 +111,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
   return (
     <div
       className={cn(
-        "flex w-full flex-col min-h-screen bg-black relative",
+        "flex w-full flex-col min-h-screen bg-background relative",
         className,
       )}
     >
@@ -98,11 +120,8 @@ export const SignInPage = ({ className }: SignInPageProps) => {
           <div className="absolute inset-0">
             <CanvasRevealEffect
               animationSpeed={3}
-              containerClassName="bg-black"
-              colors={[
-                [255, 255, 255],
-                [255, 255, 255],
-              ]}
+              containerClassName="bg-background"
+              colors={canvasColors}
               dotSize={6}
               reverse={false}
             />
@@ -112,18 +131,15 @@ export const SignInPage = ({ className }: SignInPageProps) => {
           <div className="absolute inset-0">
             <CanvasRevealEffect
               animationSpeed={4}
-              containerClassName="bg-black"
-              colors={[
-                [255, 255, 255],
-                [255, 255, 255],
-              ]}
+              containerClassName="bg-background"
+              colors={canvasColors}
               dotSize={6}
               reverse
             />
           </div>
         )}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(0,0,0,1)_0%,_transparent_100%)]" />
-        <div className="absolute top-0 left-0 right-0 h-1/3 bg-gradient-to-b from-black to-transparent" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--background)_0%,_transparent_100%)]" />
+        <div className="absolute top-0 left-0 right-0 h-1/3 bg-gradient-to-b from-background to-transparent" />
       </div>
       <div className="relative z-10 flex flex-col flex-1">
         <div className="flex flex-1 flex-col lg:flex-row">

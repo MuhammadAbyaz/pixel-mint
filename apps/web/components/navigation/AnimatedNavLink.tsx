@@ -8,8 +8,8 @@ export const AnimatedNavLink = ({
   href: string;
   children: React.ReactNode;
 }) => {
-  const defaultTextColor = "text-gray-300";
-  const hoverTextColor = "text-white";
+  const defaultTextColor = "text-muted-foreground";
+  const hoverTextColor = "text-foreground";
   const textSizeClass = "text-sm";
 
   return (

@@ -155,47 +155,47 @@ function MarketPlace() {
   };
 
   return (
-    <div className="relative min-h-screen w-full bg-black">
+    <div className="relative min-h-screen w-full bg-background">
       <main className="px-4 sm:px-8 lg:px-[52px] pt-[102px]">
         {/* Filter buttons and Search */}
         <div className="flex flex-col sm:flex-row gap-4 mb-[51px] items-start sm:items-center justify-between animate-in fade-in slide-in-from-top-4 duration-700">
           <div className="flex gap-[6px] flex-wrap">
             <button
               onClick={() => setActiveFilter("All")}
-              className={`h-[38px] px-4 rounded-[10px] border border-[#413c3c] font-semibold text-[16px] transition-all duration-300 hover:scale-105 hover:border-white/50 ${
+              className={`h-10 px-4 rounded-lg border border-border font-semibold text-sm transition-all duration-300 hover:scale-105 hover:border-foreground/50 ${
                 activeFilter === "All"
-                  ? "bg-[#141414] text-white"
-                  : "bg-[#141414] text-white hover:bg-[#1f1f1f]"
+                  ? "bg-card text-foreground"
+                  : "bg-card text-foreground hover:bg-card/80"
               }`}
             >
               All
             </button>
             <button
               onClick={() => setActiveFilter("Gaming")}
-              className={`h-[38px] px-4 rounded-[10px] border border-[#413c3c] font-normal text-[16px] transition-all duration-300 hover:scale-105 hover:border-white/50 ${
+              className={`h-10 px-4 rounded-lg border border-border font-medium text-sm transition-all duration-300 hover:scale-105 hover:border-foreground/50 ${
                 activeFilter === "Gaming"
-                  ? "bg-[#141414] text-white"
-                  : "bg-[#141414] text-white hover:bg-[#1f1f1f]"
+                  ? "bg-card text-foreground"
+                  : "bg-card text-foreground hover:bg-card/80"
               }`}
             >
               Gaming
             </button>
             <button
               onClick={() => setActiveFilter("Art")}
-              className={`h-[38px] px-4 rounded-[10px] border border-[#413c3c] font-normal text-[16px] transition-all duration-300 hover:scale-105 hover:border-white/50 ${
+              className={`h-10 px-4 rounded-lg border border-border font-medium text-sm transition-all duration-300 hover:scale-105 hover:border-foreground/50 ${
                 activeFilter === "Art"
-                  ? "bg-[#141414] text-white"
-                  : "bg-[#141414] text-white hover:bg-[#1f1f1f]"
+                  ? "bg-card text-foreground"
+                  : "bg-card text-foreground hover:bg-card/80"
               }`}
             >
               Art
             </button>
             <button
               onClick={() => setActiveFilter("More")}
-              className={`h-[38px] px-4 rounded-[10px] border border-[#413c3c] font-normal text-[16px] transition-all duration-300 hover:scale-105 hover:border-white/50 ${
+              className={`h-10 px-4 rounded-lg border border-border font-medium text-sm transition-all duration-300 hover:scale-105 hover:border-foreground/50 ${
                 activeFilter === "More"
-                  ? "bg-[#141414] text-white"
-                  : "bg-[#141414] text-white hover:bg-[#1f1f1f]"
+                  ? "bg-card text-foreground"
+                  : "bg-card text-foreground hover:bg-card/80"
               }`}
             >
               More
@@ -204,12 +204,12 @@ function MarketPlace() {
 
           {/* Search Bar */}
           <div className="relative w-full sm:w-[497px]">
-            <div className="h-[38px] rounded-[10px] bg-[#141414] border border-[#413c3c] flex items-center px-4 gap-2 transition-all duration-300 hover:border-white/50 focus-within:border-white/70">
-              <Search className="w-4 h-4 text-[#5f5f5f]" />
+            <div className="h-10 rounded-lg bg-card border border-border flex items-center px-4 gap-2 transition-all duration-300 hover:border-foreground/50 focus-within:border-foreground/70">
+              <Search className="w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search Collections Or Creators"
-                className="flex-1 bg-transparent text-[14px] text-white outline-none placeholder:text-[#5f5f5f]"
+                className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
             </div>
           </div>
@@ -234,17 +234,17 @@ function MarketPlace() {
                 className="w-full h-full object-cover"
               />
               {/* Gradient Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-background/60 via-transparent to-transparent" />
             </div>
           ))}
 
           {/* Content */}
           <div className="absolute bottom-6 left-6 sm:bottom-10 sm:left-10 z-10">
-            <h1 className="text-white text-[24px] sm:text-[30px] font-bold mb-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h1 className="text-foreground text-2xl sm:text-3xl font-semibold mb-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
               {heroSlides[currentSlide]?.title}
             </h1>
             <div className="flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
-              <p className="text-white text-[16px] sm:text-[20px] font-semibold">
+              <p className="text-foreground text-base sm:text-lg font-medium">
                 by {heroSlides[currentSlide]?.creator}
               </p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -259,14 +259,14 @@ function MarketPlace() {
           {/* Navigation Buttons */}
           <button
             onClick={prevSlide}
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110"
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-background/50 hover:bg-background/70 text-foreground p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110"
             aria-label="Previous slide"
           >
             <ChevronLeft className="w-6 h-6" />
           </button>
           <button
             onClick={nextSlide}
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110"
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-background/50 hover:bg-background/70 text-foreground p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110"
             aria-label="Next slide"
           >
             <ChevronRight className="w-6 h-6" />
@@ -280,8 +280,8 @@ function MarketPlace() {
                 onClick={() => setCurrentSlide(index)}
                 className={`transition-all duration-300 rounded-full ${
                   index === currentSlide
-                    ? "bg-white w-8 h-2"
-                    : "bg-white/50 w-2 h-2 hover:bg-white/75"
+                    ? "bg-foreground w-8 h-2"
+                    : "bg-foreground/50 w-2 h-2 hover:bg-foreground/75"
                 }`}
                 aria-label={`Go to slide ${index + 1}`}
               />
@@ -291,7 +291,7 @@ function MarketPlace() {
 
         {/* Trending Creators */}
         <section className="mb-[153px] animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <h2 className="text-white text-[28px] sm:text-[32px] font-bold mb-[53px]">
+          <h2 className="text-foreground text-2xl sm:text-3xl font-semibold mb-12">
             Trending Creators
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-[15px]">
@@ -299,7 +299,7 @@ function MarketPlace() {
               <Link
                 href={`/creator/${creator.slug}`}
                 key={index}
-                className="bg-[#141414] border border-[#413c3c] rounded-[20px] h-[98px] flex items-center gap-4 px-4 transition-all duration-300 hover:scale-105 hover:border-white/50 hover:shadow-lg hover:shadow-white/10 cursor-pointer group"
+                className="bg-card border border-border rounded-[20px] h-[98px] flex items-center gap-4 px-4 transition-all duration-300 hover:scale-105 hover:border-foreground/50 hover:shadow-lg hover:shadow-foreground/10 cursor-pointer group"
                 style={{
                   animationDelay: `${index * 100}ms`,
                 }}
@@ -314,7 +314,7 @@ function MarketPlace() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <p className="text-white text-[15px] font-semibold truncate">
+                    <p className="text-foreground text-sm font-semibold truncate">
                       {creator.name}
                     </p>
                     {creator.verified && (
@@ -326,10 +326,10 @@ function MarketPlace() {
                       />
                     )}
                   </div>
-                  <p className="text-[#9e9999] text-[12px] transition-colors group-hover:text-white/70">
+                  <p className="text-muted-foreground text-xs transition-colors group-hover:text-foreground/70">
                     Popularity: {creator.popularity}
                   </p>
-                  <p className="text-[#9e9999] text-[12px] transition-colors group-hover:text-white/70">
+                  <p className="text-muted-foreground text-xs transition-colors group-hover:text-foreground/70">
                     Total Collections: {creator.collections}
                   </p>
                 </div>
@@ -340,7 +340,7 @@ function MarketPlace() {
 
         {/* Trending Collections */}
         <section className="pb-[100px] animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
-          <h2 className="text-white text-[28px] sm:text-[32px] font-bold mb-[53px]">
+          <h2 className="text-foreground text-2xl sm:text-3xl font-semibold mb-12">
             Trending Collections
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-[13px]">
@@ -348,7 +348,7 @@ function MarketPlace() {
               <Link
                 href={`/collection/${collection.slug}`}
                 key={index}
-                className="border border-[#413c3c] rounded-[20px] overflow-hidden bg-[#141414] transition-all duration-300 hover:scale-105 hover:border-white/50 hover:shadow-lg hover:shadow-white/10 cursor-pointer group"
+                className="border border-border rounded-[20px] overflow-hidden bg-card transition-all duration-300 hover:scale-105 hover:border-foreground/50 hover:shadow-lg hover:shadow-foreground/10 cursor-pointer group"
                 style={{
                   animationDelay: `${index * 100}ms`,
                 }}
@@ -360,13 +360,13 @@ function MarketPlace() {
                     alt={collection.name}
                     className="w-full h-full object-cover opacity-80 transition-all duration-500 group-hover:opacity-100 group-hover:scale-110"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 </div>
                 <div className="p-4">
-                  <p className="text-white text-[14px] font-semibold mb-1 transition-colors group-hover:text-white">
+                  <p className="text-foreground text-sm font-semibold mb-1 transition-colors group-hover:text-foreground">
                     {collection.name}
                   </p>
-                  <p className="text-[#9e9999] text-[12px] transition-colors group-hover:text-white/70">
+                  <p className="text-muted-foreground text-xs transition-colors group-hover:text-foreground/70">
                     Floor price: {collection.floorPrice}
                   </p>
                 </div>

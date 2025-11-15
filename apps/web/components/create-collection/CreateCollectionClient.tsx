@@ -1,12 +1,16 @@
 "use client";
-import React, { useState, useRef, ChangeEvent } from "react";
+import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { toast } from "sonner";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   uploadCollectionImage,
   createCollection,
 } from "@/actions/collection.actions";
+import { Loader } from "@/components/ui/loader";
 
 // Image constants from Figma
 const imgLayer1 =
@@ -23,22 +27,54 @@ type CreateCollectionClientProps = {
   user: User;
 };
 
+const collectionSchema = z.object({
+  name: z.string().min(1, "Please enter a collection name").trim(),
+  description: z.string().min(1, "Please enter a description").trim(),
+  imageFile: z.instanceof(File, { message: "Please upload a collection image" }).refine(
+    (file) => {
+      const validTypes = ["image/png", "image/jpeg", "image/svg+xml"];
+      return validTypes.includes(file.type);
+    },
+    { message: "Only PNG, JPEG, and SVG files are supported" }
+  ).refine(
+    (file) => file.size <= 5 * 1024 * 1024,
+    { message: "Image size must be less than 5MB" }
+  ),
+});
+
+type CollectionFormData = z.infer<typeof collectionSchema>;
+
 export default function CreateCollectionClient({
   user,
 }: CreateCollectionClientProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const {
+    register,
+    handleSubmit,
+    control,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<CollectionFormData>({
+    resolver: zodResolver(collectionSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+    },
+  });
+
+  const handleImageChange = (file: File | null) => {
+    if (!file) {
+      setValue("imageFile", null as any, { shouldValidate: true });
+      setImagePreview(null);
+      return;
+    }
 
     // Validate file type
     const validTypes = ["image/png", "image/jpeg", "image/svg+xml"];
@@ -53,7 +89,7 @@ export default function CreateCollectionClient({
       return;
     }
 
-    setImageFile(file);
+    setValue("imageFile", file, { shouldValidate: true });
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagePreview(reader.result as string);
@@ -61,28 +97,15 @@ export default function CreateCollectionClient({
     reader.readAsDataURL(file);
   };
 
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    handleImageChange(file);
+  };
+
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (!file) return;
-
-    const validTypes = ["image/png", "image/jpeg", "image/svg+xml"];
-    if (!validTypes.includes(file.type)) {
-      toast.error("Only PNG, JPEG, and SVG files are supported");
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image size must be less than 5MB");
-      return;
-    }
-
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    const file = e.dataTransfer.files?.[0] || null;
+    handleImageChange(file);
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -90,8 +113,7 @@ export default function CreateCollectionClient({
   };
 
   const handleRemoveImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
+    handleImageChange(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -108,33 +130,19 @@ export default function CreateCollectionClient({
     setCategories(categories.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!name.trim()) {
-      toast.error("Please enter a collection name");
-      return;
-    }
-
-    if (!description.trim()) {
-      toast.error("Please enter a description");
-      return;
-    }
-
-    if (!imageFile) {
-      toast.error("Please upload a collection image");
-      return;
-    }
-
+  const onSubmit = async (data: CollectionFormData) => {
     setIsLoading(true);
+    setIsUploading(true);
 
     try {
       // Upload image to Supabase
       const formData = new FormData();
-      formData.append("image", imageFile);
+      formData.append("image", data.imageFile);
 
       const { url: imageUrl, error: uploadError } =
         await uploadCollectionImage(formData);
+
+      setIsUploading(false);
 
       if (uploadError || !imageUrl) {
         toast.error(uploadError || "Failed to upload image");
@@ -144,8 +152,8 @@ export default function CreateCollectionClient({
 
       // Create collection in database
       const { success, error: createError } = await createCollection(
-        name,
-        description,
+        data.name,
+        data.description,
         imageUrl,
         categories,
       );
@@ -170,126 +178,158 @@ export default function CreateCollectionClient({
     router.back();
   };
 
+  const imageFile = watch("imageFile");
+
   return (
-    <div className="relative min-h-screen w-full bg-black">
+    <div className="relative min-h-screen w-full bg-background">
       <main className="px-4 sm:px-8 lg:px-[144px] pt-[131px] pb-[100px]">
         {/* Tabs */}
-        <div className="flex justify-center items-center gap-[170px] mb-[51px] relative">
-          <button
-            className={`text-3xl transition-colors ${"text-white font-bold"}`}
-          >
+        <div className="flex justify-center items-center mb-12 relative">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">
             Create New Collection
-          </button>
+          </h1>
 
           {/* Tab Indicator Line */}
-          <div className="absolute bottom-[-20px] left-0 right-0 h-[1px] bg-white/10" />
+          <div className="absolute bottom-[-20px] left-0 right-0 h-[1px] bg-border" />
           <div
-            className={`absolute bottom-[-23px] h-[3px] bg-[#037ae5] transition-all duration-300`}
+            className={`absolute bottom-[-23px] h-[3px] bg-foreground transition-all duration-300`}
           />
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="max-w-[1154px] mx-auto">
+        <form onSubmit={handleSubmit(onSubmit)} className="max-w-[1154px] mx-auto">
           {/* Collection Image */}
-          <div className="mb-[56px]">
-            <label className="text-white text-lg block mb-[31px]">
+          <div className="mb-8">
+            <label className="text-foreground text-sm font-medium block mb-2">
               Collection Image *
             </label>
-            <p className="text-[#9e9999] text-base mb-[20px]">
+            <p className="text-muted-foreground text-xs mb-4">
               Only support png, jpeg, svg
             </p>
 
-            <div
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              className="relative bg-[#141414] border border-dashed border-[#413c3c] rounded-[10px] h-[267px] flex flex-col items-center justify-center cursor-pointer group hover:border-[#037ae5]/50 transition-colors"
-              onClick={() => !imagePreview && fileInputRef.current?.click()}
-            >
-              {imagePreview ? (
-                <div className="relative w-full h-full">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={imagePreview}
-                    alt="Collection preview"
-                    className="w-full h-full object-contain rounded-[10px]"
-                  />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveImage();
-                    }}
-                    className="absolute top-4 right-4 bg-red-500 hover:bg-red-600 text-white rounded-full p-2 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
+            <Controller
+              name="imageFile"
+              control={control}
+              render={({ field: { onChange, value, ...field } }) => (
                 <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={imgLayer1}
-                    alt="Upload icon"
-                    className="w-[70px] h-[81px] mb-4"
-                  />
-                  <p className="text-[#b9b7b7] text-base mb-[18px]">
-                    Drag & drop your file
-                  </p>
-                  <p className="text-[#b9b7b7] text-base mb-[19px]">OR</p>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fileInputRef.current?.click();
-                    }}
-                    className="bg-[#141414] border border-[#b9b7b7] rounded-[10px] px-6 py-2 text-[#b9b7b7] text-base hover:border-[#037ae5] hover:text-[#037ae5] transition-colors"
+                  <div
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    className={`relative bg-card border border-dashed rounded-lg h-64 flex flex-col items-center justify-center cursor-pointer group hover:border-foreground/50 transition-all ${
+                      errors.imageFile ? "border-destructive" : "border-border"
+                    }`}
+                    onClick={() => !imagePreview && fileInputRef.current?.click()}
                   >
-                    Browse Files
-                  </button>
+                    {imagePreview ? (
+                      <div className="relative w-full h-full">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={imagePreview}
+                          alt="Collection preview"
+                          className="w-full h-full object-contain rounded-[10px]"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveImage();
+                          }}
+                          className="absolute top-3 right-3 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-full p-1.5 transition-all shadow-sm"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={imgLayer1}
+                          alt="Upload icon"
+                          className="w-[70px] h-[81px] mb-4"
+                        />
+                        <p className="text-muted-foreground text-sm mb-3">
+                          Drag & drop your file
+                        </p>
+                        <p className="text-muted-foreground text-sm mb-3">OR</p>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            fileInputRef.current?.click();
+                          }}
+                          className="bg-card border border-border rounded-lg px-5 py-2 text-muted-foreground text-sm font-medium hover:border-foreground hover:text-foreground hover:bg-card/80 transition-all"
+                        >
+                          Browse Files
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {errors.imageFile && (
+                    <p className="text-destructive text-xs mt-2">
+                      {errors.imageFile.message}
+                    </p>
+                  )}
+                  <input
+                    {...field}
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/svg+xml"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      handleImageChange(file);
+                    }}
+                    className="hidden"
+                  />
                 </>
               )}
-            </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/svg+xml"
-              onChange={handleImageChange}
-              className="hidden"
             />
           </div>
 
           {/* Name */}
-          <div className="mb-[71px]">
-            <label className="text-white text-lg block mb-[17px]">Name *</label>
+          <div className="mb-6">
+            <label className="text-foreground text-sm font-medium block mb-2">
+              Name *
+            </label>
             <input
+              {...register("name")}
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
               placeholder="Enter Collection Name"
-              className="w-full bg-[#141414] border border-[#413c3c] rounded-[10px] h-[48px] px-[23px] text-white placeholder:text-[#b9b7b7] focus:outline-none focus:border-[#037ae5] transition-colors"
+              className={`w-full bg-background border rounded-lg h-11 px-4 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground focus:ring-1 focus:ring-foreground transition-all ${
+                errors.name ? "border-destructive" : "border-border"
+              }`}
             />
+            {errors.name && (
+              <p className="text-destructive text-xs mt-2">
+                {errors.name.message}
+              </p>
+            )}
           </div>
 
           {/* Description */}
-          <div className="mb-[38px]">
-            <label className="text-white text-lg block mb-[15px]">
+          <div className="mb-6">
+            <label className="text-foreground text-sm font-medium block mb-2">
               Description *
             </label>
             <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              {...register("description")}
               placeholder="Description"
-              className="w-full bg-[#141414] border border-[#413c3c] rounded-[10px] h-[248px] p-[20px] text-white placeholder:text-[#b9b7b7] focus:outline-none focus:border-[#037ae5] transition-colors resize-none"
+              className={`w-full bg-background border rounded-lg h-32 p-4 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground focus:ring-1 focus:ring-foreground transition-all resize-none ${
+                errors.description ? "border-destructive" : "border-border"
+              }`}
             />
+            {errors.description && (
+              <p className="text-destructive text-xs mt-2">
+                {errors.description.message}
+              </p>
+            )}
           </div>
 
           {/* Category */}
-          <div className="mb-[93px]">
-            <label className="text-white text-lg block mb-[11px]">
+          <div className="mb-8">
+            <label className="text-foreground text-sm font-medium block mb-2">
               Category
             </label>
-            <p className="text-[#9e9999] text-base mb-[26px]">
+            <p className="text-muted-foreground text-xs mb-4">
               Adding a category will make your collection filterable
             </p>
 
@@ -298,15 +338,15 @@ export default function CreateCollectionClient({
                 {categories.map((category, index) => (
                   <div
                     key={index}
-                    className="bg-[#141414] border border-[#413c3c] rounded-lg px-4 py-2 flex items-center gap-2"
+                    className="bg-card border border-border rounded-md px-3 py-1.5 flex items-center gap-2"
                   >
-                    <span className="text-white text-sm">{category}</span>
+                    <span className="text-foreground text-sm">{category}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveCategory(index)}
-                      className="text-[#b9b7b7] hover:text-red-500 transition-colors"
+                      className="text-muted-foreground hover:text-destructive transition-colors"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 ))}
@@ -316,31 +356,31 @@ export default function CreateCollectionClient({
             <button
               type="button"
               onClick={handleAddCategory}
-              className="bg-[#141414] border border-[#b9b7b7] rounded-[10px] h-[50px] px-[48px] text-[#b9b7b7] text-base hover:border-[#037ae5] hover:text-[#037ae5] transition-colors"
+              className="bg-card border border-border rounded-lg h-10 px-6 text-muted-foreground text-sm font-medium hover:border-foreground hover:text-foreground hover:bg-card/80 transition-all"
             >
               Add Category
             </button>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center gap-4">
             <button
               type="button"
               onClick={handleCancel}
               disabled={isLoading}
-              className="border border-[#b9b7b7] rounded-[18px] h-[68px] w-[402px] text-[#b9b7b7] text-[22px] font-medium hover:border-white hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 border border-border rounded-lg h-11 text-muted-foreground text-sm font-medium hover:border-foreground hover:text-foreground hover:bg-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="bg-[#037ae5] hover:bg-[#0267c7] rounded-[22px] h-[68px] w-[402px] text-white text-[22px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              className="flex-1 bg-primary hover:bg-primary/90 rounded-lg h-11 text-primary-foreground text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-sm hover:shadow-md"
             >
               {isLoading ? (
                 <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Creating...</span>
+                  <Loader size="sm" />
+                  <span>{isUploading ? "Uploading..." : "Creating..."}</span>
                 </div>
               ) : (
                 "Create Collection"

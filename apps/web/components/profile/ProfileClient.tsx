@@ -39,7 +39,7 @@ export default function ProfileClient({
   const displayedItems = activeTab === "collections" ? collections : favorites;
 
   return (
-    <div className="relative min-h-screen w-full bg-black">
+    <div className="relative min-h-screen w-full bg-background">
       <main className="px-4 sm:px-8 lg:px-[52px] pt-[115px] pb-[100px]">
         {/* Profile Header */}
         <div className="flex flex-col items-center mb-[100px] animate-in fade-in slide-in-from-top-4 duration-700">
@@ -56,7 +56,7 @@ export default function ProfileClient({
               {isOwner && (
                 <button
                   onClick={() => setIsEditDialogOpen(true)}
-                  className="absolute bottom-2 right-2 bg-[#037ae5] hover:bg-[#0366c7] text-white p-2.5 sm:p-3 rounded-full transition-all duration-300 hover:scale-110 shadow-lg hover:shadow-blue-500/50"
+                  className="absolute bottom-2 right-2 bg-primary hover:bg-primary/90 text-primary-foreground p-2.5 sm:p-3 rounded-full transition-all duration-300 hover:scale-110 shadow-lg hover:shadow-primary/50"
                 >
                   <Edit2 className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
@@ -67,7 +67,7 @@ export default function ProfileClient({
           {/* User Info */}
           <div className="text-center animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
             <div className="flex items-center justify-center gap-2 mb-3">
-              <h1 className="text-white text-[20px] sm:text-[24px] font-semibold">
+              <h1 className="text-foreground text-xl sm:text-2xl font-semibold">
                 {user.name || "Anonymous"}
               </h1>
               {/* Verified badge - for now showing for all */}
@@ -78,10 +78,10 @@ export default function ProfileClient({
                 className="w-[20px] h-[20px] sm:w-[24px] sm:h-[24px] animate-in zoom-in duration-500 delay-200"
               />
             </div>
-            <p className="text-[#9e9999] text-[13px] sm:text-[14px] mb-1 transition-colors hover:text-white/70">
+            <p className="text-muted-foreground text-xs sm:text-sm mb-1 transition-colors hover:text-foreground/70">
               Popularity: 1 Million
             </p>
-            <p className="text-[#9e9999] text-[13px] sm:text-[14px] transition-colors hover:text-white/70">
+            <p className="text-muted-foreground text-xs sm:text-sm transition-colors hover:text-foreground/70">
               Joined August 2001
             </p>
           </div>
@@ -92,30 +92,30 @@ export default function ProfileClient({
           <div className="relative inline-flex gap-8 sm:gap-16">
             <button
               onClick={() => setActiveTab("collections")}
-              className={`text-[16px] sm:text-[18px] font-bold pb-2 transition-all duration-300 relative ${
+              className={`text-base sm:text-lg font-semibold pb-2 transition-all duration-300 relative ${
                 activeTab === "collections"
-                  ? "text-white"
-                  : "text-white/50 hover:text-white/75"
+                  ? "text-foreground"
+                  : "text-foreground/50 hover:text-foreground/75"
               }`}
             >
               Collections
               {activeTab === "collections" && (
-                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white rounded-full animate-in slide-in-from-left duration-300" />
+                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-foreground rounded-full animate-in slide-in-from-left duration-300" />
               )}
             </button>
             {/* Only show Favorites tab for owner */}
             {isOwner && (
               <button
                 onClick={() => setActiveTab("favorites")}
-                className={`text-[16px] sm:text-[18px] font-normal pb-2 transition-all duration-300 relative ${
+                className={`text-base sm:text-lg font-medium pb-2 transition-all duration-300 relative ${
                   activeTab === "favorites"
-                    ? "text-white"
-                    : "text-white/50 hover:text-white/75"
+                    ? "text-foreground"
+                    : "text-foreground/50 hover:text-foreground/75"
                 }`}
               >
                 Favorites
                 {activeTab === "favorites" && (
-                  <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white rounded-full animate-in slide-in-from-left duration-300" />
+                  <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-foreground rounded-full animate-in slide-in-from-left duration-300" />
                 )}
               </button>
             )}
@@ -128,7 +128,7 @@ export default function ProfileClient({
             <Link
               href={`/collection/${item.slug}`}
               key={`${item.slug}-${index}`}
-              className="border border-[#413c3c] rounded-[20px] overflow-hidden bg-[#141414] transition-all duration-500 hover:scale-105 hover:border-white/50 hover:shadow-xl hover:shadow-white/10 cursor-pointer group animate-in fade-in zoom-in-95 duration-500"
+              className="border border-border rounded-[20px] overflow-hidden bg-card transition-all duration-500 hover:scale-105 hover:border-foreground/50 hover:shadow-xl hover:shadow-foreground/10 cursor-pointer group animate-in fade-in zoom-in-95 duration-500"
               style={{
                 animationDelay: `${index * 100}ms`,
               }}
@@ -141,10 +141,10 @@ export default function ProfileClient({
                   className="w-full h-full object-cover opacity-80 transition-all duration-700 group-hover:opacity-100 group-hover:scale-110"
                 />
                 {/* Gradient Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                <div className="absolute inset-0 bg-gradient-to-t from-background/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               </div>
               <div className="p-4">
-                <p className="text-white text-[13px] sm:text-[14px] font-semibold transition-colors duration-300 group-hover:text-blue-400">
+                <p className="text-foreground text-sm font-semibold transition-colors duration-300 group-hover:text-primary">
                   {item.name}
                 </p>
               </div>
@@ -156,12 +156,12 @@ export default function ProfileClient({
         {displayedItems.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 animate-in fade-in zoom-in duration-500">
             <div className="text-center">
-              <p className="text-white/50 text-lg mb-2">
+              <p className="text-muted-foreground text-lg mb-2">
                 {activeTab === "favorites"
                   ? "No favorites yet"
                   : "No collections yet"}
               </p>
-              <p className="text-white/30 text-sm">
+              <p className="text-muted-foreground/60 text-sm">
                 {activeTab === "favorites"
                   ? "Start exploring and add collections to your favorites"
                   : "Create your first collection to get started"}
