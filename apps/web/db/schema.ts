@@ -99,10 +99,13 @@ export const nfts = pgTable("nfts", {
   userId: text("userId")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  collectionId: text("collectionId").references(() => collections.id, {
-    onDelete: "set null",
-  }),
+  collectionId: text("collectionId")
+    .notNull()
+    .references(() => collections.id, {
+      onDelete: "cascade",
+    }),
   isListed: timestamp("isListed", { mode: "date" }),
+  likes: integer("likes").notNull().default(0),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
 });

@@ -2,10 +2,10 @@
 
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { collections } from "@/db/schema";
+import { collections, nfts } from "@/db/schema";
 import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, sql, desc, isNotNull } from "drizzle-orm";
 
 export type Collection = {
   id: string;
@@ -120,6 +120,22 @@ export async function getUserCollections(
   }
 }
 
+export async function getCollectionById(
+  collectionId: string,
+): Promise<Collection | null> {
+  try {
+    const [collection] = await db
+      .select()
+      .from(collections)
+      .where(eq(collections.id, collectionId));
+
+    return collection || null;
+  } catch (error) {
+    console.error("Error fetching collection:", error);
+    return null;
+  }
+}
+
 export async function deleteCollection(
   collectionId: string,
 ): Promise<{ success: boolean; error?: string }> {
@@ -161,5 +177,45 @@ export async function deleteCollection(
   } catch (error) {
     console.error("Error deleting collection:", error);
     return { success: false, error: "Failed to delete collection" };
+  }
+}
+
+export type TrendingCollection = Collection & {
+  totalLikes: number;
+};
+
+export async function getTrendingCollections(
+  limit: number = 4,
+): Promise<TrendingCollection[]> {
+  try {
+    // Get collections with sum of likes from their listed NFTs
+    const trendingCollections = await db
+      .select({
+        id: collections.id,
+        name: collections.name,
+        description: collections.description,
+        image: collections.image,
+        userId: collections.userId,
+        categories: collections.categories,
+        createdAt: collections.createdAt,
+        updatedAt: collections.updatedAt,
+        totalLikes: sql<number>`COALESCE(SUM(CASE WHEN ${nfts.isListed} IS NOT NULL THEN ${nfts.likes} ELSE 0 END), 0)`.as("totalLikes"),
+      })
+      .from(collections)
+      .leftJoin(nfts, eq(collections.id, nfts.collectionId))
+      .groupBy(collections.id)
+      .orderBy(desc(sql<number>`COALESCE(SUM(CASE WHEN ${nfts.isListed} IS NOT NULL THEN ${nfts.likes} ELSE 0 END), 0)`))
+      .limit(limit);
+
+    // Filter out collections with 0 total likes and map results
+    return trendingCollections
+      .filter((col) => Number(col.totalLikes) > 0)
+      .map((col) => ({
+        ...col,
+        totalLikes: Number(col.totalLikes) || 0,
+      }));
+  } catch (error) {
+    console.error("Error fetching trending collections:", error);
+    return [];
   }
 }

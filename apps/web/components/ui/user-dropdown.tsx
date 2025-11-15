@@ -23,7 +23,7 @@ export const UserDropdown = ({
       {
         icon: "ix:user-profile-filled",
         label: "Your profile",
-        href: `/profile/${user.id}`,
+        href: user.id ? `/profile/${user.id}` : "#",
         action: () => {},
       },
       {

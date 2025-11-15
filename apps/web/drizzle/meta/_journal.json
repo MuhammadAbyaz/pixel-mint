@@ -64,6 +64,20 @@
       "when": 1762875151032,
       "tag": "0008_harsh_payback",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1763211226941,
+      "tag": "0009_curious_talon",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1763213122290,
+      "tag": "0010_green_gorgon",
+      "breakpoints": true
     }
   ]
 }

@@ -10,6 +10,12 @@ export default async function UserProfile({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  // Validate id exists and is a valid string
+  if (!id || typeof id !== "string" || id.trim() === "") {
+    notFound();
+  }
+
   const user = await getUserById(id);
   const isOwner = await isOwnProfile(id);
 

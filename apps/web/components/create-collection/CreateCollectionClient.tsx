@@ -165,7 +165,11 @@ export default function CreateCollectionClient({
       }
 
       toast.success("Collection created successfully!");
-      router.push(`/profile/${user.id}`);
+      if (user.id) {
+        router.push(`/profile/${user.id}`);
+      } else {
+        router.push("/");
+      }
     } catch (error) {
       console.error("Error creating collection:", error);
       toast.error("Failed to create collection. Please try again.");
