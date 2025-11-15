@@ -89,7 +89,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
   return (
     <div
       className={cn(
-        "flex w-full flex-col min-h-screen bg-black relative",
+        "flex w-full flex-col min-h-screen bg-background relative",
         className,
       )}
     >
@@ -98,7 +98,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
           <div className="absolute inset-0">
             <CanvasRevealEffect
               animationSpeed={3}
-              containerClassName="bg-black"
+              containerClassName="bg-background"
               colors={[
                 [255, 255, 255],
                 [255, 255, 255],
@@ -112,7 +112,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
           <div className="absolute inset-0">
             <CanvasRevealEffect
               animationSpeed={4}
-              containerClassName="bg-black"
+              containerClassName="bg-background"
               colors={[
                 [255, 255, 255],
                 [255, 255, 255],
@@ -122,8 +122,8 @@ export const SignInPage = ({ className }: SignInPageProps) => {
             />
           </div>
         )}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(0,0,0,1)_0%,_transparent_100%)]" />
-        <div className="absolute top-0 left-0 right-0 h-1/3 bg-gradient-to-b from-black to-transparent" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--background)_0%,_transparent_100%)]" />
+        <div className="absolute top-0 left-0 right-0 h-1/3 bg-gradient-to-b from-background to-transparent" />
       </div>
       <div className="relative z-10 flex flex-col flex-1">
         <div className="flex flex-1 flex-col lg:flex-row">

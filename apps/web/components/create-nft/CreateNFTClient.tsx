@@ -1,10 +1,14 @@
 "use client";
-import React, { useState, useRef, ChangeEvent } from "react";
+import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, X } from "lucide-react";
 import { toast } from "sonner";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { uploadNFTImage, createNFT } from "@/actions/nft.actions";
 import type { Collection } from "@/actions/collection.actions";
+import { Loader } from "@/components/ui/loader";
 
 type User = {
   id?: string;
@@ -18,25 +22,79 @@ type CreateNFTClientProps = {
   collections: Collection[];
 };
 
+const nftSchema = z.object({
+  name: z.string().min(1, "Please enter an NFT name").trim(),
+  description: z.string().min(1, "Please enter a description").trim(),
+  price: z.string().refine(
+    (val) => {
+      const num = parseFloat(val);
+      return !isNaN(num) && num > 0;
+    },
+    { message: "Please enter a valid price" }
+  ),
+  collectionId: z.string().optional(),
+  imageFile: z.instanceof(File, { message: "Please upload your artwork" }).refine(
+    (file) => {
+      const validTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/svg+xml",
+        "image/webm",
+        "video/mp4",
+        "video/webm",
+        "audio/wav",
+        "audio/ogg",
+        "model/gltf-binary",
+        "model/gltf+json",
+      ];
+      return validTypes.includes(file.type);
+    },
+    { message: "Unsupported file type" }
+  ).refine(
+    (file) => file.size <= 100 * 1024 * 1024,
+    { message: "File size must be less than 100MB" }
+  ),
+});
+
+type NFTFormData = z.infer<typeof nftSchema>;
+
 export default function CreateNFTClient({
   user,
   collections,
 }: CreateNFTClientProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
-  const [selectedCollection, setSelectedCollection] = useState<string>("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<NFTFormData>({
+    resolver: zodResolver(nftSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      price: "",
+      collectionId: "",
+    },
+  });
+
+  const watchedPrice = watch("price");
+
+  const handleImageChange = (file: File | null) => {
+    if (!file) {
+      setValue("imageFile", null as any, { shouldValidate: true });
+      setImagePreview(null);
+      return;
+    }
 
     // Validate file type
     const validTypes = [
@@ -65,7 +123,7 @@ export default function CreateNFTClient({
       return;
     }
 
-    setImageFile(file);
+    setValue("imageFile", file, { shouldValidate: true });
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagePreview(reader.result as string);
@@ -73,44 +131,17 @@ export default function CreateNFTClient({
     reader.readAsDataURL(file);
   };
 
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    handleImageChange(file);
+  };
+
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
 
-    const file = e.dataTransfer.files?.[0];
-    if (!file) return;
-
-    const validTypes = [
-      "image/jpeg",
-      "image/png",
-      "image/gif",
-      "image/svg+xml",
-      "image/webm",
-      "video/mp4",
-      "video/webm",
-      "audio/wav",
-      "audio/ogg",
-      "model/gltf-binary",
-      "model/gltf+json",
-    ];
-    if (!validTypes.includes(file.type)) {
-      toast.error(
-        "Unsupported file type. Supported formats: JPG, PNG, GIF, SVG, WEBM, MP3, MP4, WAV, OGG, GLB, GLTF",
-      );
-      return;
-    }
-
-    if (file.size > 100 * 1024 * 1024) {
-      toast.error("File size must be less than 100MB");
-      return;
-    }
-
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    const file = e.dataTransfer.files?.[0] || null;
+    handleImageChange(file);
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -124,45 +155,25 @@ export default function CreateNFTClient({
   };
 
   const handleRemoveImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
+    handleImageChange(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!name.trim()) {
-      toast.error("Please enter an NFT name");
-      return;
-    }
-
-    if (!description.trim()) {
-      toast.error("Please enter a description");
-      return;
-    }
-
-    if (!price || parseFloat(price) <= 0) {
-      toast.error("Please enter a valid price");
-      return;
-    }
-
-    if (!imageFile) {
-      toast.error("Please upload your artwork");
-      return;
-    }
-
+  const onSubmit = async (data: NFTFormData) => {
     setIsLoading(true);
+    setIsUploading(true);
 
     try {
       // Upload image to Supabase
       const formData = new FormData();
-      formData.append("image", imageFile);
+      formData.append("image", data.imageFile);
 
       const { url: imageUrl, error: uploadError } =
         await uploadNFTImage(formData);
+
+      setIsUploading(false);
 
       if (uploadError || !imageUrl) {
         toast.error(uploadError || "Failed to upload artwork");
@@ -172,11 +183,11 @@ export default function CreateNFTClient({
 
       // Create NFT in database
       const { success, error: createError } = await createNFT(
-        name,
-        description,
+        data.name,
+        data.description,
         imageUrl,
-        price,
-        selectedCollection || undefined,
+        data.price,
+        data.collectionId || undefined,
       );
 
       if (!success) {
@@ -195,32 +206,34 @@ export default function CreateNFTClient({
     }
   };
 
+  const imageFile = watch("imageFile");
+
   return (
-    <div className="relative min-h-screen w-full bg-black">
+    <div className="relative min-h-screen w-full bg-background">
       <main className="px-4 sm:px-8 lg:px-[120px] pt-[120px] pb-[100px] max-w-6xl mx-auto">
         {/* Page Title */}
-        <div className="text-center mb-10 mt-5 animate-in fade-in slide-in-from-top-4 duration-700">
-          <h1 className="text-white text-4xl font-normal mb-3">
+        <div className="text-center mb-8 mt-5 animate-in fade-in slide-in-from-top-4 duration-700">
+          <h1 className="text-foreground text-3xl sm:text-4xl font-semibold mb-2">
             Create New NFT
           </h1>
-          <p className="text-white/60 text-base">
+          <p className="text-muted-foreground text-sm sm:text-base">
             Follow the steps below to mint and list your artwork.
           </p>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
           {/* Step 1: Upload Artwork */}
-          <div className="bg-[#1a1a1a] rounded-2xl p-6 animate-in fade-in slide-in-from-left-4 duration-700 delay-100">
+          <div className="bg-card border border-border rounded-2xl p-6 animate-in fade-in slide-in-from-left-4 duration-700 delay-100">
             <div className="flex items-start gap-4 mb-4">
-              <div className="bg-[#037ae5] rounded-full w-10 h-10 flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-medium text-lg">1</span>
+              <div className="bg-foreground rounded-full w-10 h-10 flex items-center justify-center flex-shrink-0">
+                <span className="text-background font-medium text-lg">1</span>
               </div>
               <div className="flex-1">
-                <h2 className="text-white text-xl font-semibold mb-1">
+                <h2 className="text-foreground text-lg font-semibold mb-1">
                   Upload your artwork
                 </h2>
-                <p className="text-white/50 text-sm">
+                <p className="text-muted-foreground text-xs">
                   Upload the file you want to turn into an NFT. Supported
                   formats: JPG, PNG, GIF, SVG, WEBM, MP3, MP4, WAV, OGG, GLB,
                   GLTF.
@@ -228,78 +241,96 @@ export default function CreateNFTClient({
               </div>
             </div>
 
-            <div
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              className={`relative border-2 border-dashed rounded-xl h-[200px] flex flex-col items-center justify-center cursor-pointer transition-all ${
-                isDragging
-                  ? "border-[#037ae5] bg-[#037ae5]/10"
-                  : "border-[#413c3c] bg-[#141414]"
-              } ${imagePreview ? "" : "hover:border-[#037ae5]/50"}`}
-              onClick={() => !imagePreview && fileInputRef.current?.click()}
-            >
-              {imagePreview ? (
-                <div className="relative w-full h-full">
-                  {imageFile?.type.startsWith("image/") ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={imagePreview}
-                      alt="NFT preview"
-                      className="w-full h-full object-contain rounded-xl"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <p className="text-white/70">
-                        {imageFile?.name || "File uploaded"}
-                      </p>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveImage();
-                    }}
-                    className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-2 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
+            <Controller
+              name="imageFile"
+              control={control}
+              render={({ field: { onChange, value, ...field } }) => (
                 <>
-                  <Upload className="w-12 h-12 text-[#037ae5] mb-3" />
-                  <p className="text-[#037ae5] text-base font-medium mb-1">
-                    Upload file
-                  </p>
-                  <p className="text-white/50 text-sm">or drag and drop</p>
-                  <p className="text-white/30 text-xs mt-2">
-                    PNG, JPG, GIF up to 100MB
-                  </p>
+                  <div
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    className={`relative border-2 border-dashed rounded-lg h-48 flex flex-col items-center justify-center cursor-pointer transition-all ${
+                      isDragging
+                        ? "border-foreground bg-foreground/10"
+                        : "border-border bg-card"
+                    } ${imagePreview ? "" : "hover:border-foreground/50"} ${
+                      errors.imageFile ? "border-destructive" : ""
+                    }`}
+                    onClick={() => !imagePreview && fileInputRef.current?.click()}
+                  >
+                    {imagePreview ? (
+                      <div className="relative w-full h-full">
+                        {imageFile?.type.startsWith("image/") ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={imagePreview}
+                            alt="NFT preview"
+                            className="w-full h-full object-contain rounded-xl"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <p className="text-foreground/70">
+                              {imageFile?.name || "File uploaded"}
+                            </p>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveImage();
+                          }}
+                          className="absolute top-2 right-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-full p-1.5 transition-all shadow-sm"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="w-12 h-12 text-foreground mb-3" />
+                        <p className="text-foreground text-base font-medium mb-1">
+                          Upload file
+                        </p>
+                        <p className="text-muted-foreground text-sm">or drag and drop</p>
+                        <p className="text-muted-foreground/60 text-xs mt-2">
+                          PNG, JPG, GIF up to 100MB
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  {errors.imageFile && (
+                    <p className="text-destructive text-xs mt-2">
+                      {errors.imageFile.message}
+                    </p>
+                  )}
+                  <input
+                    {...field}
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*,audio/*,.glb,.gltf"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      handleImageChange(file);
+                    }}
+                    className="hidden"
+                  />
                 </>
               )}
-            </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,video/*,audio/*,.glb,.gltf"
-              onChange={handleImageChange}
-              className="hidden"
             />
           </div>
 
           {/* Step 2: Add Details */}
-          <div className="bg-[#1a1a1a] rounded-2xl p-6 animate-in fade-in slide-in-from-left-4 duration-700 delay-200">
+          <div className="bg-card border border-border rounded-2xl p-6 animate-in fade-in slide-in-from-left-4 duration-700 delay-200">
             <div className="flex items-start gap-4 mb-4">
-              <div className="bg-[#037ae5] rounded-full w-10 h-10 flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-medium text-lg">2</span>
+              <div className="bg-foreground rounded-full w-10 h-10 flex items-center justify-center flex-shrink-0">
+                <span className="text-background font-medium text-lg">2</span>
               </div>
               <div className="flex-1">
-                <h2 className="text-white text-xl font-semibold mb-1">
+                <h2 className="text-foreground text-lg font-semibold mb-1">
                   Add details
                 </h2>
-                <p className="text-white/50 text-sm">
+                <p className="text-muted-foreground text-xs">
                   Give your NFT a name and a description.
                 </p>
               </div>
@@ -307,38 +338,51 @@ export default function CreateNFTClient({
 
             <div className="space-y-4">
               <div>
-                <label className="text-white text-sm block mb-2">Name</label>
+                <label className="text-foreground text-sm font-medium block mb-2">
+                  Name
+                </label>
                 <input
+                  {...register("name")}
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
                   placeholder='e.g. "CryptoPunk #1034"'
-                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg h-12 px-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#037ae5] transition-colors"
+                  className={`w-full bg-background border rounded-lg h-11 px-4 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground focus:ring-1 focus:ring-foreground transition-all ${
+                    errors.name ? "border-destructive" : "border-border"
+                  }`}
                 />
+                {errors.name && (
+                  <p className="text-destructive text-xs mt-2">
+                    {errors.name.message}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="text-white text-sm block mb-2">
+                <label className="text-foreground text-sm font-medium block mb-2">
                   Description
                 </label>
                 <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  {...register("description")}
                   placeholder="Provide a detailed description of your item."
-                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg h-24 p-4 text-white placeholder:text-white/30 focus:outline-none focus:border-[#037ae5] transition-colors resize-none"
+                  className={`w-full bg-background border rounded-lg h-24 p-4 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground focus:ring-1 focus:ring-foreground transition-all resize-none ${
+                    errors.description ? "border-destructive" : "border-border"
+                  }`}
                 />
+                {errors.description && (
+                  <p className="text-destructive text-xs mt-2">
+                    {errors.description.message}
+                  </p>
+                )}
               </div>
 
               {/* Collection Selection */}
               {collections.length > 0 && (
                 <div>
-                  <label className="text-white text-sm block mb-2">
+                  <label className="text-foreground text-sm font-medium block mb-2">
                     Collection (Optional)
                   </label>
                   <select
-                    value={selectedCollection}
-                    onChange={(e) => setSelectedCollection(e.target.value)}
-                    className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg h-12 px-4 text-white focus:outline-none focus:border-[#037ae5] transition-colors"
+                    {...register("collectionId")}
+                    className="w-full bg-background border border-border rounded-lg h-11 px-4 text-foreground focus:outline-none focus:border-foreground focus:ring-1 focus:ring-foreground transition-all"
                   >
                     <option value="">No collection</option>
                     {collections.map((collection) => (
@@ -353,42 +397,50 @@ export default function CreateNFTClient({
           </div>
 
           {/* Step 3: Set Price */}
-          <div className="bg-[#1a1a1a] rounded-2xl p-6 animate-in fade-in slide-in-from-left-4 duration-700 delay-300">
+          <div className="bg-card border border-border rounded-2xl p-6 animate-in fade-in slide-in-from-left-4 duration-700 delay-300">
             <div className="flex items-start gap-4 mb-4">
-              <div className="bg-[#037ae5] rounded-full w-10 h-10 flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-medium text-lg">3</span>
+              <div className="bg-foreground rounded-full w-10 h-10 flex items-center justify-center flex-shrink-0">
+                <span className="text-background font-medium text-lg">3</span>
               </div>
               <div className="flex-1">
-                <h2 className="text-white text-xl font-semibold mb-1">
+                <h2 className="text-foreground text-lg font-semibold mb-1">
                   Set a price
                 </h2>
-                <p className="text-white/50 text-sm">
+                <p className="text-muted-foreground text-xs">
                   Enter the price for your NFT.
                 </p>
               </div>
             </div>
 
             <div>
-              <label className="text-white text-sm block mb-2">Price</label>
+              <label className="text-foreground text-sm font-medium block mb-2">
+                Price
+              </label>
               <div className="relative">
                 <input
+                  {...register("price")}
                   type="number"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
                   placeholder="0.08"
                   step="0.001"
                   min="0"
-                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg h-12 pl-4 pr-24 text-white placeholder:text-white/30 focus:outline-none focus:border-[#037ae5] transition-colors"
+                  className={`w-full bg-background border rounded-lg h-11 pl-4 pr-24 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground focus:ring-1 focus:ring-foreground transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                    errors.price ? "border-destructive" : "border-border"
+                  }`}
                 />
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                  <span className="text-white text-sm">ETH</span>
-                  <span className="text-white/30 text-sm">
-                    {price
-                      ? `($${(parseFloat(price) * 2495.78).toFixed(2)})`
+                  <span className="text-foreground text-sm">ETH</span>
+                  <span className="text-muted-foreground text-sm">
+                    {watchedPrice
+                      ? `($${(parseFloat(watchedPrice) * 2495.78).toFixed(2)})`
                       : "($0.00)"}
                   </span>
                 </div>
               </div>
+              {errors.price && (
+                <p className="text-destructive text-xs mt-2">
+                  {errors.price.message}
+                </p>
+              )}
             </div>
           </div>
 
@@ -396,12 +448,12 @@ export default function CreateNFTClient({
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-[#037ae5] hover:bg-[#5558e3] text-white text-lg font-medium rounded-xl h-14 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center animate-in fade-in slide-in-from-bottom-4 duration-700 delay-400"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-lg h-11 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-sm hover:shadow-md animate-in fade-in slide-in-from-bottom-4 duration-700 delay-400"
           >
             {isLoading ? (
               <div className="flex items-center gap-2">
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Creating & Listing NFT...</span>
+                <Loader size="sm" />
+                <span>{isUploading ? "Uploading artwork..." : "Creating & Listing NFT..."}</span>
               </div>
             ) : (
               "Create & List NFT"

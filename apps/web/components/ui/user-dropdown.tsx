@@ -63,7 +63,7 @@ export const UserDropdown = ({
       >
         <Icon
           icon={item.icon}
-          className={`size-5 ${"text-gray-500 dark:text-gray-400"}`}
+          className="size-5 text-muted-foreground"
         />
         {item.label}
       </Link>
@@ -73,7 +73,7 @@ export const UserDropdown = ({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Avatar className="cursor-pointer size-10 border border-white dark:border-gray-700">
+        <Avatar className="cursor-pointer size-10 border border-border">
           <AvatarImage
             src={user?.image ?? "/default-avatar.png"}
             alt={user?.name ?? user.initials}
@@ -83,15 +83,15 @@ export const UserDropdown = ({
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
-        className="no-scrollbar w-[230px] rounded-2xl bg-gray-50 dark:bg-black/90 p-0"
+        className="no-scrollbar w-[230px] rounded-2xl bg-card/90 backdrop-blur-lg p-0"
         side="bottom"
         align="center"
       >
-        <section className="bg-white dark:bg-gray-100/10 backdrop-blur-lg rounded-2xl p-1 shadow border border-gray-200 dark:border-gray-700/20">
+        <section className="bg-card backdrop-blur-lg rounded-2xl p-1 shadow border border-border">
           <div className="flex items-center p-2">
             <div className="flex-1 flex items-center gap-2">
               <div>
-                <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100">
+                <h3 className="font-semibold text-sm text-foreground">
                   {user.name}
                 </h3>
                 <p className="text-muted-foreground text-xs">{user.email}</p>
