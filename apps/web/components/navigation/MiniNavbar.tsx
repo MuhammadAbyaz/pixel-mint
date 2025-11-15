@@ -154,7 +154,7 @@ export function MiniNavbar() {
               <ThemeToggle />
             </div>
             <a
-              href={`/profile/${user.id}`}
+              href={user.id ? `/profile/${user.id}` : "#"}
               className="w-full text-center px-4 py-2.5 rounded-lg bg-primary/10 text-primary-foreground hover:bg-primary/20 transition-all text-sm font-medium"
               onClick={() => setIsOpen(false)}
             >

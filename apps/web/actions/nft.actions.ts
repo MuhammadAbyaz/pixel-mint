@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { nfts } from "@/db/schema";
 import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, desc, isNotNull } from "drizzle-orm";
 
 export type NFT = {
   id: string;
@@ -14,8 +14,9 @@ export type NFT = {
   image: string;
   price: string;
   userId: string;
-  collectionId: string | null;
+  collectionId: string;
   isListed: Date | null;
+  likes: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -74,12 +75,16 @@ export async function createNFT(
   description: string,
   imageUrl: string,
   price: string,
-  collectionId?: string,
+  collectionId: string,
 ): Promise<{ success: boolean; error?: string; nftId?: string }> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return { success: false, error: "Unauthorized" };
+    }
+
+    if (!collectionId) {
+      return { success: false, error: "Collection ID is required" };
     }
 
     const [newNFT] = await db
@@ -90,7 +95,7 @@ export async function createNFT(
         image: imageUrl,
         price,
         userId: session.user.id,
-        collectionId: collectionId || null,
+        collectionId: collectionId,
         isListed: new Date(), // Automatically list the NFT
       })
       .returning();
@@ -121,6 +126,150 @@ export async function getUserNFTs(userId: string): Promise<NFT[]> {
   } catch (error) {
     console.error("Error fetching user NFTs:", error);
     return [];
+  }
+}
+
+export async function getNFTsByCollection(
+  collectionId: string,
+): Promise<NFT[]> {
+  try {
+    const collectionNFTs = await db
+      .select()
+      .from(nfts)
+      .where(eq(nfts.collectionId, collectionId));
+
+    return collectionNFTs;
+  } catch (error) {
+    console.error("Error fetching collection NFTs:", error);
+    return [];
+  }
+}
+
+export async function getTrendingNFTs(limit: number = 4): Promise<NFT[]> {
+  try {
+    const trendingNFTs = await db
+      .select()
+      .from(nfts)
+      .where(isNotNull(nfts.isListed)) // Only get listed NFTs
+      .orderBy(desc(nfts.likes))
+      .limit(limit);
+
+    return trendingNFTs;
+  } catch (error) {
+    console.error("Error fetching trending NFTs:", error);
+    return [];
+  }
+}
+
+export async function getAllNFTs(
+  limit: number = 12,
+  offset: number = 0,
+): Promise<NFT[]> {
+  try {
+    const allNFTs = await db
+      .select()
+      .from(nfts)
+      .where(isNotNull(nfts.isListed)) // Only get listed NFTs
+      .orderBy(desc(nfts.createdAt)) // Order by newest first
+      .limit(limit)
+      .offset(offset);
+
+    return allNFTs;
+  } catch (error) {
+    console.error("Error fetching all NFTs:", error);
+    return [];
+  }
+}
+
+export async function getNFTById(nftId: string): Promise<NFT | null> {
+  try {
+    const [nft] = await db
+      .select()
+      .from(nfts)
+      .where(eq(nfts.id, nftId))
+      .limit(1);
+
+    return nft || null;
+  } catch (error) {
+    console.error("Error fetching NFT:", error);
+    return null;
+  }
+}
+
+export async function toggleLikeNFT(
+  nftId: string,
+): Promise<{ success: boolean; likes: number; error?: string }> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, likes: 0, error: "Unauthorized" };
+    }
+
+    const [nft] = await db.select().from(nfts).where(eq(nfts.id, nftId));
+
+    if (!nft) {
+      return { success: false, likes: 0, error: "NFT not found" };
+    }
+
+    // Increment likes (users can like their own NFTs too!)
+    const newLikes = nft.likes + 1;
+    await db
+      .update(nfts)
+      .set({ likes: newLikes, updatedAt: new Date() })
+      .where(eq(nfts.id, nftId));
+
+    revalidatePath("/");
+    revalidatePath(`/nft/${nftId}`);
+
+    return { success: true, likes: newLikes };
+  } catch (error) {
+    console.error("Error toggling like:", error);
+    return { success: false, likes: 0, error: "Failed to like NFT" };
+  }
+}
+
+export async function purchaseNFT(
+  nftId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const [nft] = await db.select().from(nfts).where(eq(nfts.id, nftId));
+
+    if (!nft) {
+      return { success: false, error: "NFT not found" };
+    }
+
+    if (nft.userId === session.user.id) {
+      return { success: false, error: "You cannot buy your own NFT" };
+    }
+
+    if (!nft.isListed) {
+      return { success: false, error: "This NFT is not available for purchase" };
+    }
+
+    // Transfer ownership to the buyer
+    await db
+      .update(nfts)
+      .set({
+        userId: session.user.id,
+        isListed: null, // Unlist the NFT after purchase
+        updatedAt: new Date(),
+      })
+      .where(eq(nfts.id, nftId));
+
+    revalidatePath("/");
+    revalidatePath(`/profile/${session.user.id}`);
+    revalidatePath(`/profile/${nft.userId}`);
+    revalidatePath(`/nft/${nftId}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error purchasing NFT:", error);
+    return { success: false, error: "Failed to purchase NFT" };
   }
 }
 

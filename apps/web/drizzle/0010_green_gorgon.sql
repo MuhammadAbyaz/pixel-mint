@@ -1,0 +1,1 @@
+ALTER TABLE "nfts" ADD COLUMN "likes" integer DEFAULT 0 NOT NULL;

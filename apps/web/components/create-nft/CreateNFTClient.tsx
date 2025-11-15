@@ -1,14 +1,16 @@
 "use client";
-import React, { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { Upload, X } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Upload, X, ChevronRight, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import Link from "next/link";
 import { uploadNFTImage, createNFT } from "@/actions/nft.actions";
 import type { Collection } from "@/actions/collection.actions";
 import { Loader } from "@/components/ui/loader";
+import { Button } from "@/components/ui/button";
 
 type User = {
   id?: string;
@@ -32,7 +34,7 @@ const nftSchema = z.object({
     },
     { message: "Please enter a valid price" }
   ),
-  collectionId: z.string().optional(),
+  collectionId: z.string().min(1, "Please select a collection"),
   imageFile: z.instanceof(File, { message: "Please upload your artwork" }).refine(
     (file) => {
       const validTypes = [
@@ -64,11 +66,19 @@ export default function CreateNFTClient({
   collections,
 }: CreateNFTClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(
+    searchParams.get("collection") || null
+  );
+
+  const selectedCollection = collections.find(
+    (c) => c.id === selectedCollectionId
+  );
 
   const {
     register,
@@ -83,9 +93,15 @@ export default function CreateNFTClient({
       name: "",
       description: "",
       price: "",
-      collectionId: "",
+      collectionId: selectedCollectionId || "",
     },
   });
+
+  useEffect(() => {
+    if (selectedCollectionId) {
+      setValue("collectionId", selectedCollectionId);
+    }
+  }, [selectedCollectionId, setValue]);
 
   const watchedPrice = watch("price");
 
@@ -161,7 +177,17 @@ export default function CreateNFTClient({
     }
   };
 
+  const handleCollectionSelect = (collectionId: string) => {
+    setSelectedCollectionId(collectionId);
+    router.push(`/create-nft?collection=${collectionId}`);
+  };
+
   const onSubmit = async (data: NFTFormData) => {
+    if (!data.collectionId) {
+      toast.error("Please select a collection");
+      return;
+    }
+
     setIsLoading(true);
     setIsUploading(true);
 
@@ -187,7 +213,7 @@ export default function CreateNFTClient({
         data.description,
         imageUrl,
         data.price,
-        data.collectionId || undefined,
+        data.collectionId,
       );
 
       if (!success) {
@@ -197,7 +223,11 @@ export default function CreateNFTClient({
       }
 
       toast.success("NFT created and listed successfully!");
-      router.push(`/profile/${user.id}`);
+      if (user.id) {
+        router.push(`/profile/${user.id}`);
+      } else {
+        router.push("/");
+      }
     } catch (error) {
       console.error("Error creating NFT:", error);
       toast.error("Failed to create NFT. Please try again.");
@@ -208,16 +238,132 @@ export default function CreateNFTClient({
 
   const imageFile = watch("imageFile");
 
+  // Show collection selection if no collection is selected
+  if (!selectedCollectionId || !selectedCollection) {
+    return (
+      <div className="relative min-h-screen w-full bg-background">
+        <main className="px-4 sm:px-8 lg:px-[120px] pt-[120px] pb-[100px] max-w-6xl mx-auto">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-8 animate-in fade-in slide-in-from-top-4 duration-700">
+            <Link
+              href="/"
+              className="hover:text-foreground transition-colors"
+            >
+              Home
+            </Link>
+            <ChevronRight className="w-4 h-4" />
+            <span className="text-foreground">Select Collection</span>
+          </div>
+
+          {/* Page Title */}
+          <div className="text-center mb-8 mt-5 animate-in fade-in slide-in-from-top-4 duration-700">
+            <h1 className="text-foreground text-3xl sm:text-4xl font-semibold mb-2">
+              Select a Collection
+            </h1>
+            <p className="text-muted-foreground text-sm sm:text-base">
+              Choose a collection to add your NFT to, or create a new one.
+            </p>
+          </div>
+
+          {collections.length === 0 ? (
+            <div className="bg-card border border-border rounded-2xl p-8 text-center animate-in fade-in slide-in-from-left-4 duration-700">
+              <p className="text-foreground text-lg font-medium mb-4">
+                You don't have any collections yet
+              </p>
+              <p className="text-muted-foreground text-sm mb-6">
+                Create a collection first to organize your NFTs
+              </p>
+              <Link href="/create-collection">
+                <Button className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Create Collection
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in slide-in-from-left-4 duration-700">
+              {collections.map((collection) => (
+                <button
+                  key={collection.id}
+                  onClick={() => handleCollectionSelect(collection.id)}
+                  className="bg-card border border-border rounded-2xl p-6 hover:border-foreground/50 transition-all text-left group"
+                >
+                  <div className="relative w-full h-48 mb-4 rounded-lg overflow-hidden bg-background">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={collection.image}
+                      alt={collection.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  </div>
+                  <h3 className="text-foreground text-lg font-semibold mb-2">
+                    {collection.name}
+                  </h3>
+                  <p className="text-muted-foreground text-sm line-clamp-2">
+                    {collection.description}
+                  </p>
+                </button>
+              ))}
+              <Link
+                href="/create-collection"
+                className="bg-card border-2 border-dashed border-border rounded-2xl p-6 hover:border-foreground/50 transition-all flex flex-col items-center justify-center text-center group"
+              >
+                <div className="w-16 h-16 rounded-full bg-background border border-border flex items-center justify-center mb-4 group-hover:border-foreground/50 transition-colors">
+                  <Plus className="w-8 h-8 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </div>
+                <h3 className="text-foreground text-lg font-semibold mb-2">
+                  Create New Collection
+                </h3>
+                <p className="text-muted-foreground text-sm">
+                  Start a new collection
+                </p>
+              </Link>
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  }
+
+  // Show NFT creation form when collection is selected
   return (
     <div className="relative min-h-screen w-full bg-background">
       <main className="px-4 sm:px-8 lg:px-[120px] pt-[120px] pb-[100px] max-w-6xl mx-auto">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-8 animate-in fade-in slide-in-from-top-4 duration-700">
+          <Link
+            href="/"
+            className="hover:text-foreground transition-colors"
+          >
+            Home
+          </Link>
+          <ChevronRight className="w-4 h-4" />
+          <button
+            onClick={() => {
+              setSelectedCollectionId(null);
+              router.push("/create-nft");
+            }}
+            className="hover:text-foreground transition-colors"
+          >
+            Collections
+          </button>
+          <ChevronRight className="w-4 h-4" />
+          <span className="text-foreground">{selectedCollection.name}</span>
+          <ChevronRight className="w-4 h-4" />
+          <span className="text-foreground">Create NFT</span>
+        </div>
+
         {/* Page Title */}
         <div className="text-center mb-8 mt-5 animate-in fade-in slide-in-from-top-4 duration-700">
           <h1 className="text-foreground text-3xl sm:text-4xl font-semibold mb-2">
             Create New NFT
           </h1>
           <p className="text-muted-foreground text-sm sm:text-base">
-            Follow the steps below to mint and list your artwork.
+            Follow the steps below to mint and list your artwork in{" "}
+            <span className="text-foreground font-medium">
+              {selectedCollection.name}
+            </span>
+            .
           </p>
         </div>
 
@@ -374,25 +520,25 @@ export default function CreateNFTClient({
                 )}
               </div>
 
-              {/* Collection Selection */}
-              {collections.length > 0 && (
-                <div>
-                  <label className="text-foreground text-sm font-medium block mb-2">
-                    Collection (Optional)
-                  </label>
-                  <select
-                    {...register("collectionId")}
-                    className="w-full bg-background border border-border rounded-lg h-11 px-4 text-foreground focus:outline-none focus:border-foreground focus:ring-1 focus:ring-foreground transition-all"
-                  >
-                    <option value="">No collection</option>
-                    {collections.map((collection) => (
-                      <option key={collection.id} value={collection.id}>
-                        {collection.name}
-                      </option>
-                    ))}
-                  </select>
+              {/* Collection Display (read-only) */}
+              <div>
+                <label className="text-foreground text-sm font-medium block mb-2">
+                  Collection
+                </label>
+                <div className="w-full bg-background border border-border rounded-lg h-11 px-4 flex items-center text-foreground">
+                  {selectedCollection.name}
                 </div>
-              )}
+                <input
+                  type="hidden"
+                  {...register("collectionId")}
+                  value={selectedCollectionId}
+                />
+                {errors.collectionId && (
+                  <p className="text-destructive text-xs mt-2">
+                    {errors.collectionId.message}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
