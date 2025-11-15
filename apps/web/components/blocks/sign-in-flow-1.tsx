@@ -9,6 +9,7 @@ import { SuccessStep } from "@/components/auth/SuccessStep";
 import { toast } from "sonner";
 import { STEPS } from "@/constants/steps";
 import { useSession } from "next-auth/react";
+import { useTheme } from "next-themes";
 
 interface SignInPageProps {
   className?: string;
@@ -24,6 +25,27 @@ export const SignInPage = ({ className }: SignInPageProps) => {
   const [initialCanvasVisible, setInitialCanvasVisible] = useState(true);
   const [reverseCanvasVisible, setReverseCanvasVisible] = useState(false);
   const { update } = useSession();
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // Get theme-aware colors for canvas effect
+  // In dark mode: use white (255, 255, 255)
+  // In light mode: use dark color (approximately foreground color)
+  const canvasColors = React.useMemo(() => {
+    if (!mounted) return [[255, 255, 255], [255, 255, 255]];
+    const isDark = resolvedTheme === "dark";
+    if (isDark) {
+      return [[255, 255, 255], [255, 255, 255]];
+    } else {
+      // Light mode: use a dark color that contrasts with light background
+      // Using a dark gray/black color for visibility
+      return [[36, 36, 36], [36, 36, 36]];
+    }
+  }, [resolvedTheme, mounted]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const goToCodeStep = () => {
     if (email) setStep(STEPS.CODE);
@@ -99,10 +121,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
             <CanvasRevealEffect
               animationSpeed={3}
               containerClassName="bg-background"
-              colors={[
-                [255, 255, 255],
-                [255, 255, 255],
-              ]}
+              colors={canvasColors}
               dotSize={6}
               reverse={false}
             />
@@ -113,10 +132,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
             <CanvasRevealEffect
               animationSpeed={4}
               containerClassName="bg-background"
-              colors={[
-                [255, 255, 255],
-                [255, 255, 255],
-              ]}
+              colors={canvasColors}
               dotSize={6}
               reverse
             />
