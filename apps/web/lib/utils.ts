@@ -1,3 +1,4 @@
+import { env } from "@/env";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -19,3 +20,18 @@ export const uniqueName = () =>
     style: "capital",
     length: 2,
   }) + Math.floor(Math.random() * 1000);
+
+/**
+ * Get IPFS URL from hash
+ * @param ipfsHash The IPFS hash (with or without ipfs:// prefix)
+ * @returns The full IPFS gateway URL
+ */
+export function getIPFSUrl(ipfsHash: string): string {
+  const PINATA_GATEWAY = env.PINATA_GATEWAY;
+
+  if (ipfsHash.startsWith("ipfs://")) {
+    const hash = ipfsHash.replace("ipfs://", "");
+    return `${PINATA_GATEWAY}${hash}`;
+  }
+  return `${PINATA_GATEWAY}${ipfsHash}`;
+}

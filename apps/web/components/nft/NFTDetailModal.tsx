@@ -8,14 +8,29 @@ import {
   ChevronUp,
   ShoppingCart,
   CheckCircle2,
+  FolderPlus,
+  X,
+  Tag,
+  XCircle,
 } from "lucide-react";
 import {
   getNFTById,
   toggleLikeNFT,
   purchaseNFT,
   checkIfLiked,
+  listNFTForSale,
+  unlistNFT,
 } from "@/actions/nft.actions";
-import { getCollectionById } from "@/actions/collection.actions";
+import PriceHistory from "./PriceHistory";
+import BlockchainInfo from "./BlockchainInfo";
+import { buyNFT, getNFTOwnerOnChain, getPublicClient } from "@/lib/blockchain";
+import { isPolygonAmoyNetwork, switchToPolygonAmoy } from "@/lib/networks";
+import { getAddress } from "viem";
+import {
+  getCollectionById,
+  getUserCollections,
+} from "@/actions/collection.actions";
+import { updateNFTCollection } from "@/actions/nft.actions";
 import { getUserById } from "@/actions/user.actions";
 import type { NFT } from "@/actions/nft.actions";
 import type { Collection } from "@/actions/collection.actions";
@@ -23,15 +38,6 @@ import type { UserProfile } from "@/actions/user.actions";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import Link from "next/link";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 import { toast } from "sonner";
 
 type NFTDetailModalProps = {
@@ -54,53 +60,29 @@ export default function NFTDetailModal({
   onLikeSuccess,
 }: NFTDetailModalProps) {
   const { resolvedTheme } = useTheme();
+  const [isMounted, setIsMounted] = useState(false);
   const [nft, setNft] = useState<NFT | null>(null);
   const [collection, setCollection] = useState<Collection | null>(null);
   const [owner, setOwner] = useState<UserProfile | null>(null);
+  const [userCollections, setUserCollections] = useState<Collection[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
   const [isBuying, setIsBuying] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
+  const [isUpdatingCollection, setIsUpdatingCollection] = useState(false);
+  const [showCollectionSelect, setShowCollectionSelect] = useState(false);
+  const [isListing, setIsListing] = useState(false);
+  const [isUnlisting, setIsUnlisting] = useState(false);
+  const [showListDialog, setShowListDialog] = useState(false);
+  const [listPrice, setListPrice] = useState("");
   const [blockchainExpanded, setBlockchainExpanded] = useState(true);
   const [priceHistoryExpanded, setPriceHistoryExpanded] = useState(true);
   const [mounted, setMounted] = useState(false);
-  const [primaryColor, setPrimaryColor] = useState<string>("#3b82f6");
 
   useEffect(() => {
     setMounted(true);
-    // Get computed primary color from CSS
-    if (typeof window !== "undefined") {
-      const updatePrimaryColor = () => {
-        // Create a temporary element with primary color to get computed value
-        const tempEl = document.createElement("div");
-        tempEl.className = "bg-primary";
-        tempEl.style.position = "absolute";
-        tempEl.style.visibility = "hidden";
-        tempEl.style.width = "1px";
-        tempEl.style.height = "1px";
-        document.body.appendChild(tempEl);
-
-        const computedStyle = window.getComputedStyle(tempEl);
-        const bgColor = computedStyle.backgroundColor;
-        document.body.removeChild(tempEl);
-
-        if (
-          bgColor &&
-          bgColor !== "rgba(0, 0, 0, 0)" &&
-          bgColor !== "transparent"
-        ) {
-          setPrimaryColor(bgColor);
-        }
-      };
-
-      // Update immediately
-      updatePrimaryColor();
-
-      // Also update when theme changes (with a small delay to ensure DOM is updated)
-      const timeoutId = setTimeout(updatePrimaryColor, 100);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [resolvedTheme]);
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (open && nftId) {
@@ -139,17 +121,61 @@ export default function NFTDetailModal({
         setNft(nftData);
 
         const [collectionData, ownerData] = await Promise.all([
-          getCollectionById(nftData.collectionId),
+          nftData.collectionId
+            ? getCollectionById(nftData.collectionId)
+            : Promise.resolve(null),
           getUserById(nftData.userId),
         ]);
 
         setCollection(collectionData);
         setOwner(ownerData);
+
+        // Load user collections if current user owns the NFT
+        const isOwnNFT =
+          currentUserId && String(currentUserId) === String(nftData.userId);
+        if (isOwnNFT && currentUserId) {
+          const collections = await getUserCollections(currentUserId);
+          setUserCollections(collections);
+        }
       }
     } catch (error) {
       console.error("Error loading NFT details:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleUpdateCollection = async (collectionId: string | null) => {
+    if (!nftId || !nft) return;
+
+    setIsUpdatingCollection(true);
+    try {
+      const result = await updateNFTCollection(nftId, collectionId);
+      if (result.success) {
+        // Update local state
+        if (collectionId) {
+          const newCollection = userCollections.find(
+            (c) => c.id === collectionId,
+          );
+          setCollection(newCollection || null);
+        } else {
+          setCollection(null);
+        }
+        setNft({ ...nft, collectionId: collectionId });
+        setShowCollectionSelect(false);
+        toast.success(
+          collectionId
+            ? "NFT added to collection"
+            : "NFT removed from collection",
+        );
+      } else {
+        toast.error(result.error || "Failed to update collection");
+      }
+    } catch (error) {
+      console.error("Error updating collection:", error);
+      toast.error("Failed to update collection");
+    } finally {
+      setIsUpdatingCollection(false);
     }
   };
 
@@ -188,7 +214,252 @@ export default function NFTDetailModal({
 
     setIsBuying(true);
     try {
-      const result = await purchaseNFT(nft.id);
+      // Check if wallet is connected
+      if (typeof window === "undefined" || !window.ethereum) {
+        toast.error("Please connect your MetaMask wallet");
+        setIsBuying(false);
+        return;
+      }
+
+      // Check if on Polygon Amoy network
+      const isOnPolygonAmoy = await isPolygonAmoyNetwork();
+      if (!isOnPolygonAmoy) {
+        toast.info("Switching to Polygon Amoy network...");
+        const switched = await switchToPolygonAmoy();
+        if (!switched) {
+          toast.error("Please switch to Polygon Amoy network manually");
+          setIsBuying(false);
+          return;
+        }
+      }
+
+      // Get buyer's wallet address
+      const accounts = (await window.ethereum.request({
+        method: "eth_requestAccounts",
+      })) as string[];
+
+      if (!accounts || accounts.length === 0) {
+        toast.error("No wallet address found");
+        setIsBuying(false);
+        return;
+      }
+
+      const buyerAddress = getAddress(accounts[0] as string);
+
+      // If NFT has tokenId, buy on blockchain
+      let transactionHash: string | undefined;
+      let blockNumber: number | undefined;
+      let blockHash: string | undefined;
+
+      if (nft.tokenId && nft.contractAddress && nft.ownerAddress) {
+        try {
+          // Verify the seller owns the NFT on-chain
+          toast.info("Verifying NFT ownership...");
+          const ownerCheck = await getNFTOwnerOnChain(BigInt(nft.tokenId));
+
+          if (!ownerCheck.success || !ownerCheck.owner) {
+            toast.error("Failed to verify NFT ownership on blockchain");
+            setIsBuying(false);
+            return;
+          }
+
+          // Verify the seller address matches the on-chain owner
+          // If there's a mismatch, use the on-chain owner (blockchain is source of truth)
+          const onChainOwner = ownerCheck.owner.toLowerCase();
+          const dbOwner = nft.ownerAddress?.toLowerCase();
+
+          if (onChainOwner !== dbOwner) {
+            // Database owner doesn't match blockchain - use blockchain owner
+            console.warn(
+              `NFT ownership mismatch. Database owner: ${dbOwner}, Blockchain owner: ${onChainOwner}. Using blockchain owner.`,
+            );
+            // Continue with blockchain owner - it's the source of truth
+          }
+
+          // Use the on-chain owner for the purchase (blockchain is source of truth)
+          const actualSellerAddress = ownerCheck.owner;
+          const onChainOwnerLower = onChainOwner;
+          const buyerAddressLower = buyerAddress.toLowerCase();
+
+          // Check if buyer is trying to buy their own NFT (using blockchain owner as source of truth)
+          if (onChainOwnerLower === buyerAddressLower) {
+            toast.error(
+              "You cannot buy your own NFT. You are the current owner on blockchain.",
+            );
+            setIsBuying(false);
+            return;
+          }
+
+          // Step 1: Buyer sends payment to seller
+          // Use the actual on-chain owner (blockchain is source of truth)
+          // buyNFT will verify ownership again and use blockchain owner
+          toast.info("Sending payment to seller...");
+          const buyResult = await buyNFT(
+            BigInt(nft.tokenId),
+            actualSellerAddress, // Pass the blockchain owner
+            nft.price,
+          );
+
+          if (!buyResult.success) {
+            // Check if it's a user rejection
+            const isUserRejection =
+              buyResult.error?.toLowerCase().includes("rejected") ||
+              buyResult.error?.toLowerCase().includes("denied");
+
+            if (isUserRejection) {
+              toast.info("Transaction cancelled. No changes were made.");
+            } else {
+              toast.error(
+                buyResult.error || "Failed to purchase on blockchain",
+              );
+            }
+            setIsBuying(false);
+            return;
+          }
+
+          transactionHash = buyResult.transactionHash;
+
+          // Get transaction receipt for block info
+          if (transactionHash) {
+            const publicClient = getPublicClient();
+            if (publicClient) {
+              try {
+                const receipt = await publicClient.waitForTransactionReceipt({
+                  hash: transactionHash as `0x${string}`,
+                });
+                blockNumber = Number(receipt.blockNumber);
+                // Try to get block hash, but handle errors gracefully
+                try {
+                  const block = await publicClient.getBlock({
+                    blockNumber: receipt.blockNumber,
+                  });
+                  blockHash = block.hash;
+                } catch (blockError) {
+                  // Block might not be available - that's okay, we still have the block number
+                  console.warn(
+                    `Could not fetch block ${receipt.blockNumber.toString()}:`,
+                    blockError,
+                  );
+                }
+              } catch (receiptError) {
+                console.error(
+                  "Error fetching transaction receipt:",
+                  receiptError,
+                );
+                // Continue without block info
+              }
+            }
+          }
+
+          // Step 2: If NFT was auto-transferred, wait for transfer confirmation
+          // Otherwise, seller needs to transfer manually
+          if (buyResult.transferHash) {
+            toast.info("Waiting for NFT transfer confirmation...");
+            const publicClient = getPublicClient();
+            if (publicClient) {
+              try {
+                await publicClient.waitForTransactionReceipt({
+                  hash: buyResult.transferHash as `0x${string}`,
+                });
+                toast.success("NFT transferred successfully!");
+              } catch (transferError) {
+                console.warn("Transfer receipt error:", transferError);
+                // Continue anyway - payment was sent
+              }
+            }
+          } else {
+            toast.info(
+              "Payment sent! The seller will transfer the NFT to you. You can check the transaction on Polygonscan.",
+            );
+          }
+
+          // Step 3: Verify NFT transfer happened (if auto-transferred)
+          // If not auto-transferred, we'll verify ownership before updating database
+          if (!buyResult.transferHash) {
+            // NFT was not auto-transferred - verify seller still owns it
+            // If seller still owns it, they need to transfer manually
+            toast.warning(
+              "Payment sent! Please wait for the seller to transfer the NFT. The purchase will be completed once the transfer is confirmed.",
+            );
+
+            // Wait a moment for any pending transfers, then verify
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+
+            // Verify the NFT was actually transferred to the buyer
+            if (!nft.tokenId) {
+              toast.error("NFT tokenId not found");
+              setIsBuying(false);
+              return;
+            }
+
+            const verifyOwner = await getNFTOwnerOnChain(BigInt(nft.tokenId));
+            if (verifyOwner.success && verifyOwner.owner) {
+              const newOwner = verifyOwner.owner.toLowerCase();
+              const buyerLower = buyerAddress.toLowerCase();
+
+              if (newOwner === buyerLower) {
+                // Transfer happened! Continue with database update
+                toast.success("NFT transfer confirmed! Completing purchase...");
+              } else {
+                // NFT still with seller - they need to transfer manually
+                toast.warning(
+                  `Payment sent, but NFT is still owned by ${newOwner.slice(0, 6)}...${newOwner.slice(-4)}. Please contact the seller to complete the transfer, or wait and refresh the page.`,
+                );
+                setIsBuying(false);
+                return; // Don't update database until transfer happens
+              }
+            } else {
+              // Couldn't verify - proceed with caution
+              toast.warning(
+                "Payment sent, but couldn't verify NFT transfer. Please check the blockchain and refresh if the transfer completed.",
+              );
+              setIsBuying(false);
+              return; // Don't update database if we can't verify
+            }
+          }
+
+          // Step 4: Update database with purchase will happen in the main flow below
+          // The payment has been sent and NFT has been transferred
+        } catch (error: unknown) {
+          console.error("Blockchain purchase error:", error);
+
+          // Check if user rejected the transaction
+          const errorMessage =
+            error && typeof error === "object" && "message" in error
+              ? String(error.message)
+              : "";
+          const errorShortMessage =
+            error && typeof error === "object" && "shortMessage" in error
+              ? String((error as { shortMessage: string }).shortMessage)
+              : "";
+
+          const isUserRejection =
+            errorMessage.toLowerCase().includes("rejected") ||
+            errorMessage.toLowerCase().includes("denied") ||
+            errorShortMessage.toLowerCase().includes("rejected") ||
+            errorShortMessage.toLowerCase().includes("denied");
+
+          if (isUserRejection) {
+            toast.info("Transaction cancelled. No changes were made.");
+          } else {
+            toast.error(
+              "Failed to complete blockchain transaction. Purchase cancelled.",
+            );
+          }
+          setIsBuying(false);
+          return;
+        }
+      }
+
+      // Update database
+      const result = await purchaseNFT(
+        nft.id,
+        buyerAddress,
+        transactionHash || "",
+        blockNumber,
+        blockHash,
+      );
+
       if (result.success) {
         toast.success(`Successfully purchased ${nft.name}!`);
         // Reload NFT details to reflect new ownership
@@ -208,20 +479,6 @@ export default function NFTDetailModal({
     }
   };
 
-  const contractAddress = nft?.id
-    ? `0x${nft.id.slice(0, 3)}...${nft.id.slice(-4)}`
-    : "0x143...c1f3";
-  const tokenId = nft?.id ? parseInt(nft.id.slice(0, 8), 16).toString() : "200";
-
-  const priceHistory = [
-    { date: "Mar 12", price: 12.3 },
-    { date: "Mar 14", price: 12.35 },
-    { date: "Mar 16", price: 12.4 },
-    { date: "Mar 18", price: 12.38 },
-    { date: "Mar 20", price: 12.42 },
-    { date: "Mar 22", price: 12.45 },
-  ];
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -235,7 +492,7 @@ export default function NFTDetailModal({
           <div className="flex items-center justify-center h-full min-h-[600px]">
             <div
               className={`w-6 h-6 border-2 border-t-transparent rounded-full animate-spin ${
-                resolvedTheme === "dark"
+                isMounted && resolvedTheme === "dark"
                   ? "border-primary-foreground"
                   : "border-black"
               }`}
@@ -325,19 +582,107 @@ export default function NFTDetailModal({
 
                 {/* Collection and Owner */}
                 <div className="space-y-3 mb-8">
-                  {collection && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground text-sm font-medium">
-                        Collection:
-                      </span>
-                      <Link
-                        href={`/collection/${collection.id}`}
-                        className="text-foreground hover:text-primary transition-colors font-semibold text-sm bg-background/50 px-3 py-1 rounded-lg hover:bg-background"
-                      >
-                        {collection.name}
-                      </Link>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-muted-foreground text-sm font-medium">
+                      Collection:
+                    </span>
+                    {(() => {
+                      const isOwnNFT =
+                        currentUserId &&
+                        String(currentUserId) === String(nft.userId);
+                      if (isOwnNFT) {
+                        // Owner can manage collection
+                        if (showCollectionSelect) {
+                          return (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <select
+                                value={collection?.id || ""}
+                                onChange={(e) => {
+                                  const newCollectionId =
+                                    e.target.value || null;
+                                  handleUpdateCollection(newCollectionId);
+                                }}
+                                disabled={isUpdatingCollection}
+                                className="bg-background border border-border rounded-lg px-3 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                              >
+                                <option value="">No Collection</option>
+                                {userCollections.map((col) => (
+                                  <option key={col.id} value={col.id}>
+                                    {col.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => setShowCollectionSelect(false)}
+                                className="text-muted-foreground hover:text-foreground transition-colors"
+                                disabled={isUpdatingCollection}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div className="flex items-center gap-2">
+                              {collection ? (
+                                <>
+                                  <Link
+                                    href={`/collection/${collection.id}`}
+                                    className="text-foreground hover:text-primary transition-colors font-semibold text-sm bg-background/50 px-3 py-1 rounded-lg hover:bg-background"
+                                  >
+                                    {collection.name}
+                                  </Link>
+                                  <button
+                                    onClick={() =>
+                                      setShowCollectionSelect(true)
+                                    }
+                                    className="text-muted-foreground hover:text-foreground transition-colors"
+                                    title="Change collection"
+                                  >
+                                    <FolderPlus className="w-4 h-4" />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-muted-foreground text-sm italic">
+                                    Not in a collection
+                                  </span>
+                                  <button
+                                    onClick={() =>
+                                      setShowCollectionSelect(true)
+                                    }
+                                    className="text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1 text-sm font-medium"
+                                    title="Add to collection"
+                                  >
+                                    <FolderPlus className="w-4 h-4" />
+                                    Add to Collection
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          );
+                        }
+                      } else {
+                        // Not owner - just show collection if it exists
+                        if (collection) {
+                          return (
+                            <Link
+                              href={`/collection/${collection.id}`}
+                              className="text-foreground hover:text-primary transition-colors font-semibold text-sm bg-background/50 px-3 py-1 rounded-lg hover:bg-background"
+                            >
+                              {collection.name}
+                            </Link>
+                          );
+                        } else {
+                          return (
+                            <span className="text-muted-foreground text-sm italic">
+                              Not in a collection
+                            </span>
+                          );
+                        }
+                      }
+                    })()}
+                  </div>
                   {owner && (
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground text-sm font-medium">
@@ -364,7 +709,7 @@ export default function NFTDetailModal({
                       ${(parseFloat(nft.price) * 2495.78).toFixed(0)}
                     </p>
                     <p className="text-lg text-muted-foreground font-medium">
-                      ({parseFloat(nft.price).toFixed(4)} ETH)
+                      ({parseFloat(nft.price).toFixed(4)} MATIC)
                     </p>
                   </div>
                 </div>
@@ -387,39 +732,14 @@ export default function NFTDetailModal({
                       )}
                     </button>
                     {blockchainExpanded && (
-                      <div className="px-5 pb-5 space-y-4 border-t border-border pt-5 bg-background/30">
-                        <div className="p-3 rounded-lg bg-background/50 border border-border/50">
-                          <p className="text-muted-foreground text-xs mb-2 font-medium uppercase tracking-wide">
-                            Contract Address
-                          </p>
-                          <p className="text-foreground font-mono text-sm font-semibold">
-                            {contractAddress}
-                          </p>
-                        </div>
-                        <div className="p-3 rounded-lg bg-background/50 border border-border/50">
-                          <p className="text-muted-foreground text-xs mb-2 font-medium uppercase tracking-wide">
-                            Token ID
-                          </p>
-                          <p className="text-foreground font-mono text-sm font-semibold">
-                            {tokenId}
-                          </p>
-                        </div>
-                        <div className="p-3 rounded-lg bg-background/50 border border-border/50">
-                          <p className="text-muted-foreground text-xs mb-2 font-medium uppercase tracking-wide">
-                            Token Standard
-                          </p>
-                          <p className="text-foreground text-sm font-semibold">
-                            ERC721
-                          </p>
-                        </div>
-                        <div className="p-3 rounded-lg bg-background/50 border border-border/50">
-                          <p className="text-muted-foreground text-xs mb-2 font-medium uppercase tracking-wide">
-                            Chain
-                          </p>
-                          <p className="text-foreground text-sm font-semibold">
-                            Ethereum
-                          </p>
-                        </div>
+                      <div className="px-5 pb-5 border-t border-border pt-5 bg-background/30">
+                        <BlockchainInfo
+                          transactionHash={nft.transactionHash}
+                          contractAddress={nft.contractAddress}
+                          tokenId={nft.tokenId}
+                          blockHash={nft.blockHash}
+                          blockNumber={nft.blockNumber}
+                        />
                       </div>
                     )}
                   </div>
@@ -443,152 +763,485 @@ export default function NFTDetailModal({
                     </button>
                     {priceHistoryExpanded && mounted && (
                       <div className="px-5 pb-5 border-t border-border pt-5 bg-background/30">
-                        <div className="h-48 w-full rounded-lg bg-background/50 p-4 border border-border/50">
-                          <ResponsiveContainer
-                            width="100%"
-                            height="100%"
-                            key={resolvedTheme}
-                          >
-                            <LineChart
-                              data={priceHistory}
-                              margin={{
-                                top: 10,
-                                right: 15,
-                                left: -20,
-                                bottom: 5,
-                              }}
-                            >
-                              <CartesianGrid
-                                strokeDasharray="3 3"
-                                stroke={
-                                  resolvedTheme === "dark"
-                                    ? "rgba(255, 255, 255, 0.1)"
-                                    : "rgba(0, 0, 0, 0.1)"
-                                }
-                                opacity={resolvedTheme === "dark" ? 0.3 : 0.2}
-                                vertical={false}
-                              />
-                              <XAxis
-                                dataKey="date"
-                                tick={{
-                                  fontSize: 11,
-                                  fill:
-                                    resolvedTheme === "dark"
-                                      ? "rgba(255, 255, 255, 0.7)"
-                                      : "rgba(0, 0, 0, 0.6)",
-                                  fontWeight: 500,
-                                }}
-                                axisLine={false}
-                                tickLine={false}
-                              />
-                              <YAxis
-                                tick={{
-                                  fontSize: 11,
-                                  fill:
-                                    resolvedTheme === "dark"
-                                      ? "rgba(255, 255, 255, 0.7)"
-                                      : "rgba(0, 0, 0, 0.6)",
-                                  fontWeight: 500,
-                                }}
-                                axisLine={false}
-                                tickLine={false}
-                                width={45}
-                                domain={["dataMin - 0.05", "dataMax + 0.05"]}
-                                tickFormatter={(value) => `${value.toFixed(1)}`}
-                              />
-                              <Tooltip
-                                contentStyle={{
-                                  backgroundColor:
-                                    resolvedTheme === "dark"
-                                      ? "hsl(210, 20%, 15%)"
-                                      : "hsl(0, 0%, 100%)",
-                                  border:
-                                    resolvedTheme === "dark"
-                                      ? "1px solid rgba(255, 255, 255, 0.1)"
-                                      : "1px solid rgba(0, 0, 0, 0.1)",
-                                  borderRadius: "8px",
-                                  color:
-                                    resolvedTheme === "dark"
-                                      ? "rgba(255, 255, 255, 0.9)"
-                                      : "rgba(0, 0, 0, 0.9)",
-                                  fontSize: "12px",
-                                  padding: "8px 12px",
-                                  boxShadow:
-                                    resolvedTheme === "dark"
-                                      ? "0 4px 12px rgba(0, 0, 0, 0.3)"
-                                      : "0 4px 12px rgba(0, 0, 0, 0.1)",
-                                  fontWeight: 500,
-                                }}
-                                labelStyle={{
-                                  color:
-                                    resolvedTheme === "dark"
-                                      ? "rgba(255, 255, 255, 0.7)"
-                                      : "rgba(0, 0, 0, 0.6)",
-                                  fontSize: "11px",
-                                  marginBottom: "6px",
-                                  fontWeight: 600,
-                                }}
-                                formatter={(value: number) => [
-                                  `${value.toFixed(2)} ETH`,
-                                  "Price",
-                                ]}
-                                cursor={{
-                                  stroke: primaryColor,
-                                  strokeWidth: 2,
-                                  strokeDasharray: "4 4",
-                                }}
-                              />
-                              <Line
-                                type="monotone"
-                                dataKey="price"
-                                stroke={primaryColor}
-                                strokeWidth={3}
-                                dot={false}
-                                activeDot={{
-                                  r: 6,
-                                  fill: primaryColor,
-                                  stroke:
-                                    resolvedTheme === "dark"
-                                      ? "hsl(210, 20%, 15%)"
-                                      : "hsl(0, 0%, 100%)",
-                                  strokeWidth: 3,
-                                }}
-                              />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        </div>
+                        <PriceHistory nftId={nft.id} />
                       </div>
                     )}
                   </div>
                 </div>
               </div>
+              ;{/* Action Buttons - Fixed at bottom */}
+              <div className="pt-6 border-t border-border mt-auto flex-shrink-0">
+                {(() => {
+                  const isOwnNFT =
+                    currentUserId &&
+                    String(currentUserId) === String(nft.userId);
 
-              {/* Buy Now Button - Fixed at bottom */}
-              {(() => {
-                const isOwnNFT =
-                  currentUserId && String(currentUserId) === String(nft.userId);
-                return !isOwnNFT;
-              })() && (
-                <div className="pt-6 border-t border-border mt-auto flex-shrink-0">
-                  <Button
-                    className="w-full bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground font-bold py-7 text-lg gap-3 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
-                    onClick={handleBuyNow}
-                    disabled={isBuying}
-                  >
-                    {isBuying ? (
-                      <>
-                        <Loader size="sm" />
-                        <span>Processing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingCart className="w-6 h-6" />
-                        <span>Buy Now</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
+                  if (isOwnNFT) {
+                    // Owner actions: List/Unlist
+                    if (nft.isListed) {
+                      // NFT is listed - show Unlist button
+                      return (
+                        <div className="space-y-3">
+                          <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                            <p className="text-green-600 dark:text-green-400 text-sm font-medium mb-1">
+                              ✓ Listed for Sale
+                            </p>
+                            <p className="text-muted-foreground text-xs">
+                              Your NFT is available for purchase
+                            </p>
+                          </div>
+                          <Button
+                            onClick={async () => {
+                              if (!nftId || isUnlisting) return;
+                              setIsUnlisting(true);
+                              try {
+                                const result = await unlistNFT(nftId);
+                                if (result.success) {
+                                  setNft({ ...nft, isListed: null });
+                                  toast.success("NFT unlisted successfully");
+                                } else {
+                                  toast.error(
+                                    result.error || "Failed to unlist NFT",
+                                  );
+                                }
+                              } catch (error) {
+                                console.error("Error unlisting NFT:", error);
+                                toast.error("Failed to unlist NFT");
+                              } finally {
+                                setIsUnlisting(false);
+                              }
+                            }}
+                            disabled={isUnlisting}
+                            variant="outline"
+                            className="w-full gap-2"
+                          >
+                            {isUnlisting ? (
+                              <>
+                                <Loader className="w-4 h-4" />
+                                Unlisting...
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="w-4 h-4" />
+                                Unlist NFT
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      );
+                    } else {
+                      // NFT is not listed - show List for Sale button
+                      return (
+                        <div className="space-y-3">
+                          {showListDialog ? (
+                            <div className="space-y-3 p-4 bg-background/50 border border-border rounded-lg">
+                              <label className="text-sm font-medium text-foreground">
+                                Set Price (MATIC)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.0001"
+                                min="0"
+                                value={listPrice}
+                                onChange={(e) => setListPrice(e.target.value)}
+                                placeholder={nft.price || "0.0000"}
+                                className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  onClick={async () => {
+                                    if (!nftId || !listPrice || isListing || !nft)
+                                      return;
+                                    const priceNum = Number(listPrice);
+                                    if (isNaN(priceNum) || priceNum <= 0) {
+                                      toast.error("Please enter a valid price");
+                                      return;
+                                    }
+
+                                    // Check if NFT has tokenId (required for blockchain listing)
+                                    if (!nft.tokenId || !nft.contractAddress) {
+                                      toast.error(
+                                        "NFT must be minted on blockchain before listing",
+                                      );
+                                      return;
+                                    }
+
+                                    setIsListing(true);
+                                    try {
+                                      // Use new lazy listing marketplace (cheap: ~0.01-0.02 POL)
+                                      // NFT stays with seller, but enables atomic swaps
+                                      const {
+                                        listNFT,
+                                        checkNFTApproval,
+                                        getWalletClient,
+                                        getPublicClient,
+                                        MARKETPLACE_CONTRACT_ADDRESS,
+                                        NFT_CONTRACT_ADDRESS,
+                                        PIXEL_MINT_NFT_ABI,
+                                      } = await import("@/lib/blockchain");
+
+                                      const walletClient = getWalletClient();
+                                      if (!walletClient) {
+                                        toast.error("Please connect your wallet");
+                                        setIsListing(false);
+                                        return;
+                                      }
+
+                                      const [account] = await walletClient.getAddresses();
+                                      if (!account) {
+                                        toast.error("No wallet account found");
+                                        setIsListing(false);
+                                        return;
+                                      }
+
+                                      if (!MARKETPLACE_CONTRACT_ADDRESS || !NFT_CONTRACT_ADDRESS) {
+                                        toast.error("Contracts not configured");
+                                        setIsListing(false);
+                                        return;
+                                      }
+
+                                      // Step 1: Check if already approved (one-time, ~0.01 POL)
+                                      const publicClient = getPublicClient();
+                                      let needsApproval = true;
+                                      if (publicClient && nft.tokenId) {
+                                        try {
+                                          const approvalCheck = await checkNFTApproval(
+                                            BigInt(nft.tokenId),
+                                            account,
+                                            MARKETPLACE_CONTRACT_ADDRESS,
+                                          );
+                                          needsApproval = !(
+                                            approvalCheck.success && approvalCheck.isApproved
+                                          );
+                                        } catch (error) {
+                                          console.warn("Could not check approval:", error);
+                                        }
+                                      }
+
+                                      // Step 2: Approve marketplace if needed (one-time, ~0.01 POL)
+                                      if (needsApproval) {
+                                        toast.info(
+                                          "Approving marketplace (one-time, ~0.01 POL). This enables atomic swaps.",
+                                        );
+                                        // Always use the NFT_CONTRACT_ADDRESS from env, not from database
+                                        // Database might have old/incorrect contract addresses
+                                        const nftContractAddress = NFT_CONTRACT_ADDRESS as `0x${string}`;
+                                        
+                                        if (!nftContractAddress) {
+                                          toast.error("NFT contract address not configured");
+                                          setIsListing(false);
+                                          return;
+                                        }
+
+                                        try {
+                                          // Verify contract addresses are valid
+                                          if (!nftContractAddress || !MARKETPLACE_CONTRACT_ADDRESS) {
+                                            toast.error("Contract addresses not configured");
+                                            setIsListing(false);
+                                            return;
+                                          }
+
+                                          // Retry logic for approval with RPC error handling
+                                          let approvalAttempts = 0;
+                                          const maxApprovalAttempts = 3;
+                                          let approvalSuccess = false;
+
+                                          while (approvalAttempts < maxApprovalAttempts && !approvalSuccess) {
+                                            try {
+                                              approvalAttempts++;
+                                              
+                                              // Simulate the transaction first to catch errors early (only on first attempt)
+                                              if (approvalAttempts === 1 && publicClient) {
+                                                try {
+                                                  await publicClient.simulateContract({
+                                                    address: nftContractAddress,
+                                                    abi: PIXEL_MINT_NFT_ABI,
+                                                    functionName: "setApprovalForAll",
+                                                    args: [
+                                                      MARKETPLACE_CONTRACT_ADDRESS as `0x${string}`,
+                                                      true,
+                                                    ],
+                                                    account,
+                                                  });
+                                                } catch (simulateError) {
+                                                  console.error("Simulation error:", simulateError);
+                                                  const simErrorMsg =
+                                                    simulateError &&
+                                                    typeof simulateError === "object" &&
+                                                    "message" in simulateError
+                                                      ? String(simulateError.message)
+                                                      : "";
+                                                  
+                                                  // Don't retry on revert errors (these are real contract errors)
+                                                  if (simErrorMsg.includes("revert") || simErrorMsg.includes("execution reverted")) {
+                                                    toast.error(
+                                                      "Cannot approve marketplace. Please check: 1) You own NFTs from this contract, 2) Contract address is correct, 3) You have sufficient POL for gas.",
+                                                    );
+                                                    setIsListing(false);
+                                                    return;
+                                                  }
+                                                  
+                                                  // For RPC errors, continue to retry
+                                                  if (
+                                                    !simErrorMsg.includes("Internal JSON-RPC error") &&
+                                                    !simErrorMsg.includes("timeout") &&
+                                                    !simErrorMsg.includes("network")
+                                                  ) {
+                                                    throw simulateError;
+                                                  }
+                                                }
+                                              }
+
+                                              await walletClient.writeContract({
+                                                address: nftContractAddress,
+                                                abi: PIXEL_MINT_NFT_ABI,
+                                                functionName: "setApprovalForAll",
+                                                args: [
+                                                  MARKETPLACE_CONTRACT_ADDRESS as `0x${string}`,
+                                                  true,
+                                                ],
+                                                account,
+                                              });
+                                              approvalSuccess = true;
+                                              toast.success("Marketplace approved!");
+                                              break; // Success, exit retry loop
+                                            } catch (approvalError: unknown) {
+                                              const errorMessage =
+                                                approvalError &&
+                                                typeof approvalError === "object" &&
+                                                "message" in approvalError
+                                                  ? String(approvalError.message)
+                                                  : "";
+                                              
+                                              const shortMessage =
+                                                approvalError &&
+                                                typeof approvalError === "object" &&
+                                                "shortMessage" in approvalError
+                                                  ? String((approvalError as { shortMessage: string }).shortMessage)
+                                                  : "";
+                                              
+                                              const fullError = errorMessage || shortMessage || "";
+                                              
+                                              // Don't retry on user rejection or revert errors
+                                              if (
+                                                fullError.toLowerCase().includes("rejected") ||
+                                                fullError.toLowerCase().includes("denied") ||
+                                                fullError.toLowerCase().includes("user rejected") ||
+                                                fullError.includes("execution reverted") ||
+                                                fullError.includes("revert")
+                                              ) {
+                                                if (fullError.includes("revert") || fullError.includes("execution reverted")) {
+                                                  toast.error(
+                                                    "Approval failed. Please verify: 1) You own NFTs from this contract, 2) Contract addresses are correct, 3) You have sufficient POL for gas.",
+                                                  );
+                                                } else {
+                                                  toast.info("Approval cancelled");
+                                                }
+                                                setIsListing(false);
+                                                return;
+                                              }
+                                              
+                                              // Retry on RPC errors
+                                              if (
+                                                (fullError.includes("Internal JSON-RPC error") ||
+                                                 fullError.includes("timeout") ||
+                                                 fullError.includes("network") ||
+                                                 fullError.includes("ECONNREFUSED") ||
+                                                 fullError.includes("fetch failed")) &&
+                                                approvalAttempts < maxApprovalAttempts
+                                              ) {
+                                                console.warn(
+                                                  `RPC error during approval, retrying (${approvalAttempts}/${maxApprovalAttempts})...`,
+                                                );
+                                                await new Promise((resolve) =>
+                                                  setTimeout(resolve, 2000 * Math.pow(2, approvalAttempts - 1)),
+                                                );
+                                                continue; // Retry
+                                              }
+                                              
+                                              // For other errors or if we've exhausted attempts, throw
+                                              throw approvalError;
+                                            }
+                                          }
+
+                                          if (!approvalSuccess) {
+                                            toast.error(
+                                              "Failed to approve marketplace after multiple attempts due to RPC errors. Please try again later or check your network connection.",
+                                            );
+                                            setIsListing(false);
+                                            return;
+                                          }
+                                        } catch (approvalError) {
+                                          console.error("Approval error:", approvalError);
+                                          const errorMessage =
+                                            approvalError &&
+                                            typeof approvalError === "object" &&
+                                            "message" in approvalError
+                                              ? String(approvalError.message)
+                                              : "";
+                                          
+                                          toast.error(`Approval failed: ${errorMessage || "Unknown error"}`);
+                                          setIsListing(false);
+                                          return;
+                                        }
+                                      }
+
+                                      // Step 3: List NFT on marketplace (~0.01-0.02 POL with lazy listing)
+                                      // NFT stays with seller, but enables atomic swaps
+                                      toast.info(
+                                        "Listing NFT on marketplace (~0.01-0.02 POL). This enables atomic swaps!",
+                                      );
+                                      const listResult = await listNFT(
+                                        BigInt(nft.tokenId),
+                                        listPrice,
+                                      );
+
+                                      if (!listResult.success) {
+                                        toast.error(
+                                          listResult.error || "Failed to list on marketplace",
+                                        );
+                                        setIsListing(false);
+                                        return;
+                                      }
+
+                                      // Wait for transaction confirmation
+                                      if (listResult.transactionHash && publicClient) {
+                                        toast.info("Waiting for transaction confirmation...");
+                                        try {
+                                          await publicClient.waitForTransactionReceipt({
+                                            hash: listResult.transactionHash as `0x${string}`,
+                                          });
+                                          toast.success("NFT listed on marketplace!");
+                                        } catch (receiptError) {
+                                          console.warn("Receipt error:", receiptError);
+                                        }
+                                      }
+
+                                      // Step 4: Update database
+                                      const result = await listNFTForSale(nftId, listPrice);
+                                      if (result.success) {
+                                        setNft({
+                                          ...nft,
+                                          price: listPrice,
+                                          isListed: new Date(),
+                                        });
+                                        setShowListDialog(false);
+                                        setListPrice("");
+                                        toast.success(
+                                          "NFT listed! Buyers can now purchase with atomic swaps (payment + transfer in one transaction).",
+                                        );
+                                        await loadNFTDetails();
+                                      } else {
+                                        toast.error(result.error || "Failed to update database");
+                                      }
+                                    } catch (error) {
+                                      console.error("Error listing NFT:", error);
+                                      const errorMessage =
+                                        error && typeof error === "object" && "message" in error
+                                          ? String(error.message)
+                                          : "";
+                                      const shortMessage =
+                                        error &&
+                                        typeof error === "object" &&
+                                        "shortMessage" in error
+                                          ? String((error as { shortMessage: string }).shortMessage)
+                                          : "";
+
+                                      const fullError = errorMessage || shortMessage || "Unknown error";
+
+                                      if (
+                                        fullError.toLowerCase().includes("rejected") ||
+                                        fullError.toLowerCase().includes("denied")
+                                      ) {
+                                        toast.info("Transaction cancelled");
+                                      } else {
+                                        toast.error(`Failed to list NFT: ${fullError}`);
+                                        console.error("Full error details:", error);
+                                      }
+                                    } finally {
+                                      setIsListing(false);
+                                    }
+                                  }}
+                                  disabled={isListing || !listPrice}
+                                  className="flex-1 gap-2"
+                                >
+                                  {isListing ? (
+                                    <>
+                                      <Loader className="w-4 h-4" />
+                                      Listing...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Tag className="w-4 h-4" />
+                                      List for Sale
+                                    </>
+                                  )}
+                                </Button>
+                                <Button
+                                  onClick={() => {
+                                    setShowListDialog(false);
+                                    setListPrice("");
+                                  }}
+                                  variant="outline"
+                                  disabled={isListing}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <Button
+                              onClick={() => {
+                                setListPrice(nft.price || "");
+                                setShowListDialog(true);
+                              }}
+                              className="w-full gap-2"
+                            >
+                              <Tag className="w-4 h-4" />
+                              List for Sale / Resell
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    }
+                  } else {
+                    // Not owner - show Buy button if listed
+                    if (nft.isListed) {
+                      return (
+                        <Button
+                          className="w-full bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground font-bold py-7 text-lg gap-3 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+                          onClick={handleBuyNow}
+                          disabled={isBuying}
+                        >
+                          {isBuying ? (
+                            <>
+                              <Loader size="sm" />
+                              <span>Processing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <ShoppingCart className="w-6 h-6" />
+                              <span>
+                                Buy Now for {parseFloat(nft.price).toFixed(4)}{" "}
+                                MATIC
+                              </span>
+                            </>
+                          )}
+                        </Button>
+                      );
+                    } else {
+                      return (
+                        <div className="p-4 bg-muted/50 border border-border rounded-lg text-center">
+                          <p className="text-muted-foreground text-sm">
+                            This NFT is not currently for sale
+                          </p>
+                        </div>
+                      );
+                    }
+                  }
+                })()}
+              </div>
+              ;
             </div>
           </div>
         ) : (

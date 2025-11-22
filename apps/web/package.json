@@ -50,6 +50,7 @@
     "tailwindcss": "^4.1.13",
     "three": "^0.180.0",
     "unique-names-generator": "^4.7.1",
+    "viem": "^2.39.3",
     "zod": "^4.1.8"
   },
   "devDependencies": {

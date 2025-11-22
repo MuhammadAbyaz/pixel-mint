@@ -18,6 +18,7 @@ export const users = pgTable("users", {
   email: text("email").unique(),
   emailVerified: timestamp("emailVerified", { mode: "date" }),
   image: text("image"),
+  walletAddress: text("walletAddress"),
 });
 
 export const accounts = pgTable(
@@ -99,15 +100,39 @@ export const nfts = pgTable("nfts", {
   userId: text("userId")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  collectionId: text("collectionId")
-    .notNull()
-    .references(() => collections.id, {
-      onDelete: "cascade",
-    }),
+  collectionId: text("collectionId").references(() => collections.id, {
+    onDelete: "cascade",
+  }),
   isListed: timestamp("isListed", { mode: "date" }),
   likes: integer("likes").notNull().default(0),
+  // Blockchain fields
+  tokenId: text("tokenId"),
+  contractAddress: text("contractAddress"),
+  transactionHash: text("transactionHash"),
+  blockNumber: integer("blockNumber"),
+  blockHash: text("blockHash"),
+  ipfsHash: text("ipfsHash"), // IPFS hash for metadata
+  tokenURI: text("tokenURI"), // IPFS URI for metadata JSON
+  ownerAddress: text("ownerAddress"), // Current owner's wallet address
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+// NFT sales history table
+export const nftSales = pgTable("nft_sales", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  nftId: text("nftId")
+    .notNull()
+    .references(() => nfts.id, { onDelete: "cascade" }),
+  sellerAddress: text("sellerAddress").notNull(),
+  buyerAddress: text("buyerAddress").notNull(),
+  price: numeric("price", { precision: 20, scale: 8 }).notNull(),
+  transactionHash: text("transactionHash").notNull(),
+  blockNumber: integer("blockNumber"),
+  blockHash: text("blockHash"),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
 });
 
 export const nftLikes = pgTable(

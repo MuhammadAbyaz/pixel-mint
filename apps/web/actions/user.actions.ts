@@ -14,6 +14,7 @@ export type UserProfile = {
   email: string | null;
   image: string | null;
   emailVerified: Date | null;
+  walletAddress: string | null;
 };
 
 export async function getUserById(id: string): Promise<UserProfile | null> {
@@ -216,6 +217,35 @@ export type TrendingCreator = UserProfile & {
   collectionCount: number;
 };
 
+export async function updateWalletAddress(
+  walletAddress: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    // Validate wallet address format (basic Ethereum address validation)
+    if (!walletAddress || !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      return { success: false, error: "Invalid wallet address format" };
+    }
+
+    // Update user in database
+    await db
+      .update(users)
+      .set({ walletAddress: walletAddress.toLowerCase() })
+      .where(eq(users.id, currentUser.id));
+
+    revalidatePath(`/profile/${currentUser.id}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating wallet address:", error);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
 export async function getTrendingCreators(
   limit: number = 4,
 ): Promise<TrendingCreator[]> {
@@ -227,14 +257,24 @@ export async function getTrendingCreators(
         email: users.email,
         image: users.image,
         emailVerified: users.emailVerified,
-        totalLikes: sql<number>`COALESCE(SUM(CASE WHEN ${nfts.isListed} IS NOT NULL THEN ${nfts.likes} ELSE 0 END), 0)`.as("totalLikes"),
-        collectionCount: sql<number>`COUNT(DISTINCT ${collections.id})`.as("collectionCount"),
+        walletAddress: users.walletAddress,
+        totalLikes:
+          sql<number>`COALESCE(SUM(CASE WHEN ${nfts.isListed} IS NOT NULL THEN ${nfts.likes} ELSE 0 END), 0)`.as(
+            "totalLikes",
+          ),
+        collectionCount: sql<number>`COUNT(DISTINCT ${collections.id})`.as(
+          "collectionCount",
+        ),
       })
       .from(users)
       .leftJoin(collections, eq(users.id, collections.userId))
       .leftJoin(nfts, eq(collections.id, nfts.collectionId))
       .groupBy(users.id)
-      .orderBy(desc(sql<number>`COALESCE(SUM(CASE WHEN ${nfts.isListed} IS NOT NULL THEN ${nfts.likes} ELSE 0 END), 0)`))
+      .orderBy(
+        desc(
+          sql<number>`COALESCE(SUM(CASE WHEN ${nfts.isListed} IS NOT NULL THEN ${nfts.likes} ELSE 0 END), 0)`,
+        ),
+      )
       .limit(limit);
 
     return trendingCreators
@@ -245,6 +285,7 @@ export async function getTrendingCreators(
         email: creator.email,
         image: creator.image,
         emailVerified: creator.emailVerified,
+        walletAddress: creator.walletAddress,
         totalLikes: Number(creator.totalLikes) || 0,
         collectionCount: Number(creator.collectionCount) || 0,
       }));

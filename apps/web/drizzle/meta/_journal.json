@@ -85,6 +85,34 @@
       "when": 1763230448070,
       "tag": "0011_elite_norman_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1763700688902,
+      "tag": "0012_slow_marten_broadcloak",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1763701723493,
+      "tag": "0013_fearless_shiva",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1763705982153,
+      "tag": "0014_worried_warbound",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1763737279334,
+      "tag": "0015_harsh_sunspot",
+      "breakpoints": true
     }
   ]
 }

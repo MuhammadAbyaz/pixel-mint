@@ -14,8 +14,16 @@ export const env = createEnv({
     SUPABASE_URL: z.string().url(),
     SUPABASE_ANON_KEY: z.string(),
     SUPABASE_BUCKET_NAME: z.string(),
+    PINATA_API_KEY: z.string().optional(),
+    PINATA_SECRET_KEY: z.string().optional(),
+    PINATA_GATEWAY: z.string().url().optional(),
   },
-  client: {},
+  client: {
+    NEXT_PUBLIC_NFT_CONTRACT_ADDRESS: z.string().optional(),
+    NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS: z.string().optional(),
+    NEXT_PUBLIC_ALCHEMY_API_KEY: z.string().optional(),
+    NEXT_PUBLIC_ALCHEMY_RPC_URL: z.string().url().optional(),
+  },
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
     AUTH_SECRET: process.env.AUTH_SECRET,
@@ -28,5 +36,14 @@ export const env = createEnv({
     SUPABASE_URL: process.env.SUPABASE_URL,
     SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
     SUPABASE_BUCKET_NAME: process.env.SUPABASE_BUCKET_NAME,
+    PINATA_API_KEY: process.env.PINATA_API_KEY,
+    PINATA_SECRET_KEY: process.env.PINATA_SECRET_KEY,
+    PINATA_GATEWAY: process.env.PINATA_GATEWAY,
+    NEXT_PUBLIC_NFT_CONTRACT_ADDRESS:
+      process.env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS,
+    NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS:
+      process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS,
+    NEXT_PUBLIC_ALCHEMY_API_KEY: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
+    NEXT_PUBLIC_ALCHEMY_RPC_URL: process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL,
   },
 });

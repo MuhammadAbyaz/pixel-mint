@@ -1,0 +1,19 @@
+{
+  "name": "pixel-mint-contracts",
+  "version": "1.0.0",
+  "description": "Smart contracts for Pixel Mint NFT Marketplace",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:amoy": "hardhat run scripts/deploy.ts --network polygonAmoy",
+    "verify": "hardhat verify --network polygonAmoy",
+    "node": "hardhat node"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "hardhat": "^2.22.0",
+    "dotenv": "^17.2.2"
+  }
+}
