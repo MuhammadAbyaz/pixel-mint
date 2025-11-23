@@ -49,6 +49,12 @@ const authConfig = NextAuth({
     verificationTokensTable: verificationTokens,
   }),
   callbacks: {
+    async session({ session, user }) {
+      if (session.user) {
+        session.user.id = user.id;
+      }
+      return session;
+    },
     async signIn({ user, account }) {
       if (!user?.email) return false;
 

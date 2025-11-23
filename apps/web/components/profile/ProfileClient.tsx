@@ -1,23 +1,21 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Edit2, Plus, Wallet, Image as ImageIcon } from "lucide-react";
+import { Edit2, Wallet, Image as ImageIcon } from "lucide-react";
 import type { UserProfile } from "@/actions/user.actions";
 import type { NFT } from "@/actions/nft.actions";
-import { updateWalletAddress } from "@/actions/user.actions";
+import { getCreatorProfile, updateWalletAddress } from "@/actions/user.actions";
 import EditProfileDialog from "./EditProfileDialog";
-import FloatingCreateButton from "../CreateButton";
 import NFTDetailModal from "@/components/nft/NFTDetailModal";
 import { Button } from "@/components/ui/button";
 import { getAddress } from "viem";
 import { toast } from "sonner";
 import { isPolygonAmoyNetwork, switchToPolygonAmoy } from "@/lib/networks";
+import VerifiedIcon from "@/public/verified.png";
 
 // Image constants from Figma
 const imgRectangle31 =
   "https://www.figma.com/api/mcp/asset/c0b92990-cb0e-4b4d-b2b9-fed03eeebda8";
-const imgImage6 =
-  "https://www.figma.com/api/mcp/asset/af368e5b-5e1a-434c-9e21-5ab60e611279";
 
 type Collection = {
   name: string;
@@ -50,6 +48,20 @@ export default function ProfileClient({
   const [isConnecting, setIsConnecting] = useState(false);
   const [selectedNFTId, setSelectedNFTId] = useState<string | null>(null);
   const [isNFTModalOpen, setIsNFTModalOpen] = useState(false);
+  const [creator, setCreator] = useState<{ totalLikes: number }>({
+    totalLikes: 0,
+  });
+
+  // Fetch creator profile data
+  useEffect(() => {
+    async function fetchCreatorProfile() {
+      const profile = await getCreatorProfile(user.id);
+      if (profile) {
+        setCreator({ totalLikes: profile.totalLikes });
+      }
+    }
+    fetchCreatorProfile();
+  }, [user.id]);
 
   // Sync wallet address with user prop when it changes
   useEffect(() => {
@@ -77,7 +89,9 @@ export default function ProfileClient({
 
       // Check if MetaMask is installed
       if (typeof window === "undefined" || !window.ethereum) {
-        toast.error("MetaMask is not installed. Please install MetaMask to continue.");
+        toast.error(
+          "MetaMask is not installed. Please install MetaMask to continue.",
+        );
         setIsConnecting(false);
         return;
       }
@@ -88,7 +102,9 @@ export default function ProfileClient({
         toast.info("Switching to Polygon Amoy network...");
         const switched = await switchToPolygonAmoy();
         if (!switched) {
-          toast.error("Please switch to Polygon Amoy network manually in MetaMask");
+          toast.error(
+            "Please switch to Polygon Amoy network manually in MetaMask",
+          );
           setIsConnecting(false);
           return;
         }
@@ -176,16 +192,18 @@ export default function ProfileClient({
               {/* Verified badge - for now showing for all */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={imgImage6}
+                src={VerifiedIcon.src}
                 alt="Verified"
                 className="w-[20px] h-[20px] sm:w-[24px] sm:h-[24px] animate-in zoom-in duration-500 delay-200"
               />
             </div>
             <p className="text-muted-foreground text-xs sm:text-sm mb-1 transition-colors hover:text-foreground/70">
-              Popularity: 1 Million
-            </p>
-            <p className="text-muted-foreground text-xs sm:text-sm mb-4 transition-colors hover:text-foreground/70">
-              Joined August 2001
+              Popularity:{" "}
+              {creator.totalLikes >= 1000000
+                ? `${(creator.totalLikes / 1000000).toFixed(1)}M`
+                : creator.totalLikes >= 1000
+                  ? `${(creator.totalLikes / 1000).toFixed(1)}K`
+                  : creator.totalLikes}
             </p>
             {/* Wallet Address Section */}
             {walletAddress ? (
@@ -302,7 +320,7 @@ export default function ProfileClient({
                   </p>
                   {nft.price && (
                     <p className="text-primary text-sm font-semibold mt-2">
-                      {Number(nft.price).toFixed(4)} MATIC
+                      {Number(nft.price).toFixed(4)} POL
                     </p>
                   )}
                 </div>
@@ -344,9 +362,7 @@ export default function ProfileClient({
         {activeTab === "nfts" && displayedNFTs.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 animate-in fade-in zoom-in duration-500">
             <div className="text-center">
-              <p className="text-muted-foreground text-lg mb-2">
-                No NFTs yet
-              </p>
+              <p className="text-muted-foreground text-lg mb-2">No NFTs yet</p>
               <p className="text-muted-foreground/60 text-sm">
                 {isOwner
                   ? "Create or purchase NFTs to see them here"

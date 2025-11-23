@@ -14,15 +14,19 @@ export default function FloatingCreateButton() {
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Invisible hover area to keep menu open */}
-      <div className={`absolute bottom-0 right-0 w-20 transition-all duration-500 ${
-        isHovered ? "h-44 opacity-0" : "h-0 opacity-0"
-      }`} />
+      <div
+        className={`absolute bottom-0 right-0 w-20 transition-all duration-500 ${
+          isHovered ? "h-44 opacity-0" : "h-0 opacity-0"
+        }`}
+      />
 
       {/* Create Collection Button */}
       <Link
         href="/create-collection"
         className={`absolute bottom-28 right-0 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full p-3 shadow-lg transition-all duration-500 group/collection z-20 ${
-          isHovered ? "opacity-100 scale-100" : "opacity-0 scale-0 pointer-events-none"
+          isHovered
+            ? "opacity-100 scale-100"
+            : "opacity-0 scale-0 pointer-events-none"
         }`}
       >
         <FolderPlus className="w-4 h-4" />
@@ -35,7 +39,9 @@ export default function FloatingCreateButton() {
       <Link
         href="/create-nft"
         className={`absolute bottom-14 right-0 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full p-3 shadow-lg transition-all duration-500 group/nft z-10 ${
-          isHovered ? "opacity-100 scale-100" : "opacity-0 scale-0 pointer-events-none"
+          isHovered
+            ? "opacity-100 scale-100"
+            : "opacity-0 scale-0 pointer-events-none"
         }`}
       >
         <Image className="w-4 h-4" />

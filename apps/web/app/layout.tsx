@@ -35,7 +35,7 @@ export default async function RootLayout({
           <MiniNavbar />
           <Toaster richColors />
           {children}
-          <FloatingCreateButton />
+          {session?.user && <FloatingCreateButton />}
         </Providers>
       </body>
     </html>
