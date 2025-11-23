@@ -1,0 +1,8 @@
+{
+  "network": "polygonAmoy",
+  "deployer": "0x141AbDe4a8AA895B7D50B8bDAa93694d78007589",
+  "contracts": {
+    "PixelMintMarketplace": "0xcaa97E7c99Bac6d41498E5da903a7087c22d2201"
+  },
+  "deployedAt": "2025-11-22T06:42:53.294Z"
+}

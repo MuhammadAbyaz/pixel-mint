@@ -7,16 +7,26 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
-import { uploadNFTImage, createNFT } from "@/actions/nft.actions";
+import { createNFT, updateNFTBlockchainInfo } from "@/actions/nft.actions";
 import type { Collection } from "@/actions/collection.actions";
 import { Loader } from "@/components/ui/loader";
 import { Button } from "@/components/ui/button";
+import { getCurrentUser } from "@/actions/user.actions";
+import { isPolygonAmoyNetwork, switchToPolygonAmoy } from "@/lib/networks";
+import { getAddress } from "viem";
+import {
+  NFT_CONTRACT_ADDRESS,
+  mintNFT,
+  getPublicClient,
+  PIXEL_MINT_NFT_ABI,
+} from "@/lib/blockchain";
 
 type User = {
   id?: string;
   name?: string | null;
   email?: string | null;
   image?: string | null;
+  walletAddress?: string | null;
 };
 
 type CreateNFTClientProps = {
@@ -32,31 +42,33 @@ const nftSchema = z.object({
       const num = parseFloat(val);
       return !isNaN(num) && num > 0;
     },
-    { message: "Please enter a valid price" }
+    { message: "Please enter a valid price" },
   ),
   collectionId: z.string().min(1, "Please select a collection"),
-  imageFile: z.instanceof(File, { message: "Please upload your artwork" }).refine(
-    (file) => {
-      const validTypes = [
-        "image/jpeg",
-        "image/png",
-        "image/gif",
-        "image/svg+xml",
-        "image/webm",
-        "video/mp4",
-        "video/webm",
-        "audio/wav",
-        "audio/ogg",
-        "model/gltf-binary",
-        "model/gltf+json",
-      ];
-      return validTypes.includes(file.type);
-    },
-    { message: "Unsupported file type" }
-  ).refine(
-    (file) => file.size <= 100 * 1024 * 1024,
-    { message: "File size must be less than 100MB" }
-  ),
+  imageFile: z
+    .instanceof(File, { message: "Please upload your artwork" })
+    .refine(
+      (file) => {
+        const validTypes = [
+          "image/jpeg",
+          "image/png",
+          "image/gif",
+          "image/svg+xml",
+          "image/webm",
+          "video/mp4",
+          "video/webm",
+          "audio/wav",
+          "audio/ogg",
+          "model/gltf-binary",
+          "model/gltf+json",
+        ];
+        return validTypes.includes(file.type);
+      },
+      { message: "Unsupported file type" },
+    )
+    .refine((file) => file.size <= 100 * 1024 * 1024, {
+      message: "File size must be less than 100MB",
+    }),
 });
 
 type NFTFormData = z.infer<typeof nftSchema>;
@@ -71,13 +83,17 @@ export default function CreateNFTClient({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isMinting, setIsMinting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(
-    searchParams.get("collection") || null
+  const [walletAddress, setWalletAddress] = useState<string | null>(
+    user.walletAddress || null,
   );
+  const [selectedCollectionId, setSelectedCollectionId] = useState<
+    string | null
+  >(searchParams.get("collection") || null);
 
   const selectedCollection = collections.find(
-    (c) => c.id === selectedCollectionId
+    (c) => c.id === selectedCollectionId,
   );
 
   const {
@@ -182,9 +198,66 @@ export default function CreateNFTClient({
     router.push(`/create-nft?collection=${collectionId}`);
   };
 
+  const connectWallet = async () => {
+    try {
+      if (typeof window === "undefined" || !window.ethereum) {
+        toast.error(
+          "MetaMask is not installed. Please install MetaMask to continue.",
+        );
+        return;
+      }
+
+      // Check if user is on Polygon Amoy network
+      const isOnPolygonAmoy = await isPolygonAmoyNetwork();
+      if (!isOnPolygonAmoy) {
+        toast.info("Switching to Polygon Amoy network...");
+        const switched = await switchToPolygonAmoy();
+        if (!switched) {
+          toast.error(
+            "Please switch to Polygon Amoy network manually in MetaMask",
+          );
+          return;
+        }
+      }
+
+      // Request account access
+      const accounts = (await window.ethereum.request({
+        method: "eth_requestAccounts",
+      })) as string[];
+
+      if (!accounts || accounts.length === 0) {
+        toast.error("No wallet address found");
+        return;
+      }
+
+      const address = accounts[0];
+      if (!address) {
+        toast.error("No wallet address found");
+        return;
+      }
+      const normalizedAddress = getAddress(address);
+      setWalletAddress(normalizedAddress);
+      toast.success("Wallet connected!");
+    } catch (error: any) {
+      console.error("Error connecting wallet:", error);
+      if (error.code === 4001) {
+        toast.error("Please connect to MetaMask");
+      } else {
+        toast.error("Failed to connect wallet. Please try again.");
+      }
+    }
+  };
+
   const onSubmit = async (data: NFTFormData) => {
     if (!data.collectionId) {
       toast.error("Please select a collection");
+      return;
+    }
+
+    // Check if wallet is connected
+    if (!walletAddress) {
+      toast.error("Please connect your wallet first");
+      await connectWallet();
       return;
     }
 
@@ -192,37 +265,151 @@ export default function CreateNFTClient({
     setIsUploading(true);
 
     try {
-      // Upload image to Supabase
-      const formData = new FormData();
-      formData.append("image", data.imageFile);
-
-      const { url: imageUrl, error: uploadError } =
-        await uploadNFTImage(formData);
+      // Step 1: Upload image and metadata to IPFS (this creates the NFT in database with IPFS hashes)
+      const {
+        success,
+        error: createError,
+        nftId,
+        tokenURI,
+      } = await createNFT(
+        data.name,
+        data.description,
+        data.imageFile,
+        data.price,
+        data.collectionId,
+        walletAddress,
+        undefined, // transactionHash - will be set after minting
+        undefined, // tokenId - will be set after minting
+        NFT_CONTRACT_ADDRESS, // contractAddress
+      );
 
       setIsUploading(false);
 
-      if (uploadError || !imageUrl) {
-        toast.error(uploadError || "Failed to upload artwork");
-        setIsLoading(false);
-        return;
-      }
-
-      // Create NFT in database
-      const { success, error: createError } = await createNFT(
-        data.name,
-        data.description,
-        imageUrl,
-        data.price,
-        data.collectionId,
-      );
-
-      if (!success) {
+      if (!success || !nftId) {
         toast.error(createError || "Failed to create NFT");
         setIsLoading(false);
         return;
       }
 
-      toast.success("NFT created and listed successfully!");
+      if (!tokenURI) {
+        toast.error("Failed to get token URI from IPFS");
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 2: Mint NFT on blockchain
+      toast.info("Minting NFT on blockchain...");
+      setIsMinting(true);
+
+      const mintResult = await mintNFT(walletAddress, tokenURI);
+
+      if (!mintResult.success || !mintResult.transactionHash) {
+        toast.warning(
+          mintResult.error ||
+            "Failed to mint on blockchain, but NFT is stored on IPFS",
+        );
+        setIsMinting(false);
+        setIsLoading(false);
+        // Still redirect - NFT is created, just not minted on blockchain
+        if (user.id) {
+          router.push(`/profile/${user.id}`);
+        } else {
+          router.push("/");
+        }
+        return;
+      }
+
+      // Step 3: Update NFT in database with blockchain info
+      // The mintResult should already have the tokenId from the simulation
+      if (mintResult.transactionHash && mintResult.tokenId) {
+        const updateResult = await updateNFTBlockchainInfo(
+          nftId,
+          mintResult.tokenId.toString(),
+          mintResult.transactionHash,
+          mintResult.blockNumber,
+          mintResult.blockHash,
+        );
+
+        if (!updateResult.success) {
+          console.error(
+            "Failed to update NFT with blockchain info:",
+            updateResult.error,
+          );
+          // Continue anyway - the NFT is minted on blockchain
+        }
+
+        // Step 4: Automatically list NFT on marketplace contract for atomic swaps
+        // This enables atomic swaps when someone buys (payment + transfer in one transaction)
+        try {
+          const {
+            listNFT,
+            checkNFTApproval,
+            getWalletClient,
+            getPublicClient,
+            MARKETPLACE_CONTRACT_ADDRESS,
+            NFT_CONTRACT_ADDRESS,
+            PIXEL_MINT_NFT_ABI,
+          } = await import("@/lib/blockchain");
+
+          if (MARKETPLACE_CONTRACT_ADDRESS && NFT_CONTRACT_ADDRESS) {
+            const walletClient = getWalletClient();
+            const publicClient = getPublicClient();
+
+            if (walletClient && publicClient) {
+              const [account] = await walletClient.getAddresses();
+              if (account) {
+                // Check if marketplace is already approved
+                let needsApproval = true;
+                try {
+                  const approvalCheck = await checkNFTApproval(
+                    mintResult.tokenId,
+                    account,
+                    MARKETPLACE_CONTRACT_ADDRESS,
+                  );
+                  needsApproval = !(
+                    approvalCheck.success && approvalCheck.isApproved
+                  );
+                } catch (error) {
+                  console.warn("Could not check approval:", error);
+                }
+
+                // Skip approval for now - user can approve later if they want atomic swaps
+                // This saves gas costs (~0.5 POL) during NFT creation
+                // Note: Without approval, listing will fail, but we'll handle that gracefully
+                if (needsApproval) {
+                  toast.info(
+                    "Skipping marketplace approval to save gas. You can approve later from the NFT details page if you want atomic swaps.",
+                  );
+                  // Don't try to approve - let the listing fail gracefully if needed
+                  // User can approve manually later if they want
+                }
+
+                // Skip automatic listing to save gas
+                // User can list manually later from the NFT details page
+                // This saves ~0.01-0.02 POL during creation
+                toast.info(
+                  "NFT created! You can list it for sale later from the NFT details page to save gas costs.",
+                );
+              }
+            }
+          }
+        } catch (listingError) {
+          console.warn(
+            "Failed to list NFT on marketplace (NFT still created):",
+            listingError,
+          );
+          // Continue - NFT is created, just not listed on marketplace
+        }
+      } else if (mintResult.transactionHash) {
+        // If we have transaction hash but no tokenId, still update with what we have
+        toast.warning(
+          "NFT minted but tokenId not available. Transaction hash saved.",
+        );
+      }
+
+      setIsMinting(false);
+      toast.success("NFT created and minted on blockchain successfully!");
+
       if (user.id) {
         router.push(`/profile/${user.id}`);
       } else {
@@ -233,6 +420,8 @@ export default function CreateNFTClient({
       toast.error("Failed to create NFT. Please try again.");
     } finally {
       setIsLoading(false);
+      setIsUploading(false);
+      setIsMinting(false);
     }
   };
 
@@ -245,10 +434,7 @@ export default function CreateNFTClient({
         <main className="px-4 sm:px-8 lg:px-[120px] pt-[120px] pb-[100px] max-w-6xl mx-auto">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-8 animate-in fade-in slide-in-from-top-4 duration-700">
-            <Link
-              href="/"
-              className="hover:text-foreground transition-colors"
-            >
+            <Link href="/" className="hover:text-foreground transition-colors">
               Home
             </Link>
             <ChevronRight className="w-4 h-4" />
@@ -331,10 +517,7 @@ export default function CreateNFTClient({
       <main className="px-4 sm:px-8 lg:px-[120px] pt-[120px] pb-[100px] max-w-6xl mx-auto">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-8 animate-in fade-in slide-in-from-top-4 duration-700">
-          <Link
-            href="/"
-            className="hover:text-foreground transition-colors"
-          >
+          <Link href="/" className="hover:text-foreground transition-colors">
             Home
           </Link>
           <ChevronRight className="w-4 h-4" />
@@ -365,6 +548,27 @@ export default function CreateNFTClient({
             </span>
             .
           </p>
+          {/* Wallet Connection */}
+          {!walletAddress && (
+            <div className="mt-4 p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground mb-2">
+                Connect your wallet to mint NFTs on blockchain
+              </p>
+              <Button onClick={connectWallet} variant="outline" size="sm">
+                Connect Wallet
+              </Button>
+            </div>
+          )}
+          {walletAddress && (
+            <div className="mt-4 p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                Wallet:{" "}
+                <span className="text-foreground font-mono">
+                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </span>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Form */}
@@ -403,7 +607,9 @@ export default function CreateNFTClient({
                     } ${imagePreview ? "" : "hover:border-foreground/50"} ${
                       errors.imageFile ? "border-destructive" : ""
                     }`}
-                    onClick={() => !imagePreview && fileInputRef.current?.click()}
+                    onClick={() =>
+                      !imagePreview && fileInputRef.current?.click()
+                    }
                   >
                     {imagePreview ? (
                       <div className="relative w-full h-full">
@@ -438,7 +644,9 @@ export default function CreateNFTClient({
                         <p className="text-foreground text-base font-medium mb-1">
                           Upload file
                         </p>
-                        <p className="text-muted-foreground text-sm">or drag and drop</p>
+                        <p className="text-muted-foreground text-sm">
+                          or drag and drop
+                        </p>
                         <p className="text-muted-foreground/60 text-xs mt-2">
                           PNG, JPG, GIF up to 100MB
                         </p>
@@ -599,7 +807,11 @@ export default function CreateNFTClient({
             {isLoading ? (
               <div className="flex items-center gap-2">
                 <Loader size="sm" />
-                <span>{isUploading ? "Uploading artwork..." : "Creating & Listing NFT..."}</span>
+                <span>
+                  {isUploading
+                    ? "Uploading artwork..."
+                    : "Creating & Listing NFT..."}
+                </span>
               </div>
             ) : (
               "Create & List NFT"

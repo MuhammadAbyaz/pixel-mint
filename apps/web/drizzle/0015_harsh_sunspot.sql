@@ -1,0 +1,1 @@
+ALTER TABLE "nfts" ALTER COLUMN "collectionId" DROP NOT NULL;
