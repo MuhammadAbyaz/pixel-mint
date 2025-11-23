@@ -373,23 +373,144 @@ export default function CreateNFTClient({
                   console.warn("Could not check approval:", error);
                 }
 
-                // Skip approval for now - user can approve later if they want atomic swaps
-                // This saves gas costs (~0.5 POL) during NFT creation
-                // Note: Without approval, listing will fail, but we'll handle that gracefully
+                // Step 4a: Approve marketplace if needed (one-time, ~0.01 POL)
                 if (needsApproval) {
                   toast.info(
-                    "Skipping marketplace approval to save gas. You can approve later from the NFT details page if you want atomic swaps.",
+                    "Approving marketplace (one-time, ~0.01 POL) for atomic swaps...",
                   );
-                  // Don't try to approve - let the listing fail gracefully if needed
-                  // User can approve manually later if they want
+                  try {
+                    // Verify contract addresses are valid
+                    if (
+                      !NFT_CONTRACT_ADDRESS ||
+                      !MARKETPLACE_CONTRACT_ADDRESS
+                    ) {
+                      toast.error("Contract addresses not configured");
+                      // Continue without listing
+                    } else {
+                      // Simulate the transaction first to catch errors early
+                      try {
+                        await publicClient.simulateContract({
+                          address: NFT_CONTRACT_ADDRESS as `0x${string}`,
+                          abi: PIXEL_MINT_NFT_ABI,
+                          functionName: "setApprovalForAll",
+                          args: [
+                            MARKETPLACE_CONTRACT_ADDRESS as `0x${string}`,
+                            true,
+                          ],
+                          account,
+                        });
+                      } catch (simulateError) {
+                        console.warn("Simulation error:", simulateError);
+                        const simErrorMsg =
+                          simulateError &&
+                          typeof simulateError === "object" &&
+                          "message" in simulateError
+                            ? String(simulateError.message)
+                            : "";
+
+                        if (
+                          simErrorMsg.includes("revert") ||
+                          simErrorMsg.includes("execution reverted")
+                        ) {
+                          toast.warning(
+                            "Cannot approve marketplace. Listing will be skipped. You can approve and list later from the NFT details page.",
+                          );
+                          // Skip listing if approval fails
+                          return;
+                        }
+                        throw simulateError;
+                      }
+
+                      await walletClient.writeContract({
+                        address: NFT_CONTRACT_ADDRESS as `0x${string}`,
+                        abi: PIXEL_MINT_NFT_ABI,
+                        functionName: "setApprovalForAll",
+                        args: [
+                          MARKETPLACE_CONTRACT_ADDRESS as `0x${string}`,
+                          true,
+                        ],
+                        account,
+                      });
+                      toast.success("Marketplace approved!");
+                    }
+                  } catch (approvalError) {
+                    console.warn(
+                      "Failed to approve marketplace:",
+                      approvalError,
+                    );
+                    const errorMessage =
+                      approvalError &&
+                      typeof approvalError === "object" &&
+                      "message" in approvalError
+                        ? String(approvalError.message)
+                        : "";
+
+                    if (
+                      errorMessage.toLowerCase().includes("rejected") ||
+                      errorMessage.toLowerCase().includes("denied")
+                    ) {
+                      toast.info(
+                        "Approval cancelled. NFT created but not listed. You can approve and list later from the NFT details page.",
+                      );
+                    } else {
+                      toast.warning(
+                        "Approval failed. NFT created but not listed. You can approve and list later from the NFT details page. Error: " +
+                          errorMessage,
+                      );
+                    }
+                    // Continue - NFT is created, just not listed
+                    return;
+                  }
                 }
 
-                // Skip automatic listing to save gas
-                // User can list manually later from the NFT details page
-                // This saves ~0.01-0.02 POL during creation
+                // Step 4b: Wait a moment for the mint transaction to be fully processed
+                toast.info("Waiting for mint to be confirmed before listing...");
+                await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2 seconds
+
+                // Step 4c: List NFT on marketplace contract (~0.01-0.02 POL with lazy listing)
                 toast.info(
-                  "NFT created! You can list it for sale later from the NFT details page to save gas costs.",
+                  "Listing NFT on marketplace (~0.01-0.02 POL). This enables atomic swaps!",
                 );
+                const listResult = await listNFT(
+                  mintResult.tokenId,
+                  data.price,
+                );
+
+                if (listResult.success) {
+                  // Wait for transaction confirmation
+                  if (listResult.transactionHash && publicClient) {
+                    toast.info("Waiting for transaction confirmation...");
+                    try {
+                      await publicClient.waitForTransactionReceipt({
+                        hash: listResult.transactionHash as `0x${string}`,
+                      });
+                    } catch (receiptError) {
+                      console.warn("Receipt error:", receiptError);
+                    }
+                  }
+
+                  // Update database to reflect listing
+                  const { listNFTForSale } = await import("@/actions/nft.actions");
+                  const dbResult = await listNFTForSale(nftId, data.price);
+                  if (dbResult.success) {
+                    toast.success(
+                      "NFT listed on marketplace! Buyers can purchase with atomic swaps.",
+                    );
+                  } else {
+                    toast.warning(
+                      "NFT listed on marketplace, but database update failed. The listing is active on-chain.",
+                    );
+                  }
+                } else {
+                  console.warn(
+                    "Failed to list on marketplace:",
+                    listResult.error,
+                  );
+                  toast.warning(
+                    "NFT created but not listed on marketplace. You can list it later from the NFT details page. Error: " +
+                      (listResult.error || "Unknown error"),
+                  );
+                }
               }
             }
           }
