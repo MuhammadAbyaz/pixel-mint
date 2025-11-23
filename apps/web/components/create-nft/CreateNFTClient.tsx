@@ -297,7 +297,6 @@ export default function CreateNFTClient({
         return;
       }
 
-      // Step 2: Mint NFT on blockchain
       toast.info("Minting NFT on blockchain...");
       setIsMinting(true);
 
@@ -310,7 +309,6 @@ export default function CreateNFTClient({
         );
         setIsMinting(false);
         setIsLoading(false);
-        // Still redirect - NFT is created, just not minted on blockchain
         if (user.id) {
           router.push(`/profile/${user.id}`);
         } else {
