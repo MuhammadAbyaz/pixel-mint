@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { ExternalLink, Copy, Check } from "lucide-react";
 import { getCurrentBlock } from "@/lib/blockchain";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Loader } from "@/components/ui/loader";
 

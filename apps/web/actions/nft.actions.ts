@@ -114,7 +114,6 @@ export async function createNFT(
       return { success: false, error: "Wallet address is required" };
     }
 
-    // Step 1: Upload image to IPFS
     const imageResult = await uploadToIPFS(
       imageFile,
       `${name}-${Date.now()}.${imageFile.name.split(".").pop()}`,
@@ -130,7 +129,6 @@ export async function createNFT(
       imageResult.ipfsUrl ||
       `https://gateway.pinata.cloud/ipfs/${imageResult.ipfsHash}`;
 
-    // Step 2: Create metadata JSON and upload to IPFS
     const metadata = {
       name,
       description,
@@ -152,18 +150,16 @@ export async function createNFT(
     const tokenURI =
       metadataResult.ipfsUrl || `ipfs://${metadataResult.ipfsHash}`;
 
-    // Step 3: Save NFT to database
     const [newNFT] = await db
       .insert(nfts)
       .values({
         name,
         description,
-        image: ipfsImageUrl, // Store IPFS URL
+        image: ipfsImageUrl,
         price,
         userId: session.user.id,
         collectionId: collectionId,
-        isListed: new Date(), // Automatically list the NFT
-        // Blockchain fields
+        isListed: new Date(),
         tokenId: tokenId || null,
         contractAddress: contractAddress || null,
         transactionHash: transactionHash || null,

@@ -6,12 +6,10 @@ import {
   custom,
   http,
   parseEther,
-  getAddress,
 } from "viem";
 import { polygonAmoy } from "viem/chains";
 import { env } from "@/env";
 
-// PixelMintNFT ABI - matches the deployed contract
 export const PIXEL_MINT_NFT_ABI = [
   {
     inputs: [
@@ -113,7 +111,6 @@ export const PIXEL_MINT_NFT_ABI = [
     stateMutability: "view",
     type: "function",
   },
-  // ERC721 Transfer event
   {
     anonymous: false,
     inputs: [
@@ -126,7 +123,6 @@ export const PIXEL_MINT_NFT_ABI = [
   },
 ] as const;
 
-// PixelMintMarketplace ABI - matches the deployed contract
 export const MARKETPLACE_ABI = [
   {
     inputs: [
@@ -190,26 +186,17 @@ export const MARKETPLACE_ABI = [
   },
 ] as const;
 
-// Contract addresses - from deployed contracts
-export const NFT_CONTRACT_ADDRESS =
-  env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS || undefined;
+export const NFT_CONTRACT_ADDRESS = env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS;
 export const MARKETPLACE_CONTRACT_ADDRESS =
-  env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS || undefined;
+  env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS;
 
-/**
- * Get public client for reading blockchain data
- */
 export function getPublicClient() {
   if (typeof window === "undefined") {
     return null;
   }
-
-  // Use Alchemy RPC if available, otherwise fallback to public RPC
-  // Construct URL from API key if provided, or use full URL, or fallback to public RPC
   const alchemyApiKey = env.NEXT_PUBLIC_ALCHEMY_API_KEY;
   const alchemyRpcUrl = env.NEXT_PUBLIC_ALCHEMY_RPC_URL;
 
-  // Priority: Alchemy API Key > Alchemy RPC URL > Public RPC
   const rpcUrl = alchemyApiKey
     ? `https://polygon-amoy.g.alchemy.com/v2/${alchemyApiKey}`
     : alchemyRpcUrl || `https://rpc-amoy.polygon.technology/`;
@@ -217,16 +204,13 @@ export function getPublicClient() {
   return createPublicClient({
     chain: polygonAmoy,
     transport: http(rpcUrl, {
-      retryCount: 5, // Increased retry count
-      retryDelay: 2000, // 2 second delay between retries
-      timeout: 30000, // 30 second timeout
+      retryCount: 5,
+      retryDelay: 2000,
+      timeout: 30000,
     }),
   });
 }
 
-/**
- * Get wallet client for transactions
- */
 export function getWalletClient() {
   if (typeof window === "undefined" || !window.ethereum) {
     return null;
@@ -238,9 +222,6 @@ export function getWalletClient() {
   });
 }
 
-/**
- * Mint NFT on blockchain
- */
 export async function mintNFT(
   to: string,
   tokenURI: string,
@@ -271,10 +252,24 @@ export async function mintNFT(
       };
     }
 
-    // Get public client for reading
     const publicClient = getPublicClient();
     if (!publicClient) {
       return { success: false, error: "Failed to get public client" };
+    }
+    try {
+      await publicClient.getBlockNumber();
+    } catch (rpcTestError: unknown) {
+      const rpcTestMessage =
+        rpcTestError &&
+        typeof rpcTestError === "object" &&
+        "message" in rpcTestError
+          ? String(rpcTestError.message)
+          : "";
+      console.error("RPC connection test failed:", rpcTestError);
+      return {
+        success: false,
+        error: `Cannot connect to blockchain network. ${rpcTestMessage ? `Error: ${rpcTestMessage}` : "Please check your internet connection and try again."}`,
+      };
     }
 
     // Verify contract exists at the address
@@ -422,7 +417,6 @@ export async function mintNFT(
         };
       }
 
-      // Retry logic for RPC errors
       let mintAttempts = 0;
       const maxMintAttempts = 3;
 
@@ -511,10 +505,17 @@ export async function mintNFT(
         }
       }
 
-      // Provide helpful message for RPC errors
-      if (errorMessage.includes("Internal JSON-RPC error")) {
-        errorMessage =
-          "Network/RPC error. Please check your internet connection and try again. If the problem persists, the Polygon Amoy network might be experiencing issues.";
+      // Provide helpful message for RPC errors with more diagnostic info
+      if (
+        errorMessage.includes("Internal JSON-RPC error") ||
+        errorMessage.includes("timeout") ||
+        errorMessage.includes("ECONNREFUSED") ||
+        errorMessage.includes("fetch failed") ||
+        errorMessage.includes("Failed to fetch") ||
+        errorMessage.includes("ECONNRESET") ||
+        errorMessage.includes("network")
+      ) {
+        errorMessage = `Original error: ${errorMessage}`;
       }
 
       return {
@@ -538,14 +539,39 @@ export async function mintNFT(
       };
     }
 
-    // Wait for transaction receipt
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash: hash as `0x${string}`,
-    });
+    // Wait for transaction receipt with timeout and better error handling
+    let receipt;
+    try {
+      receipt = await publicClient.waitForTransactionReceipt({
+        hash: hash as `0x${string}`,
+        timeout: 120000,
+      });
+    } catch (receiptError: unknown) {
+      console.error("Error waiting for transaction receipt:", receiptError);
+      const receiptErrorMessage =
+        receiptError &&
+        typeof receiptError === "object" &&
+        "message" in receiptError
+          ? String(receiptError.message)
+          : "";
 
-    // Get block hash from the receipt's block number
-    // Note: We try to get the block hash, but if it's not available (e.g., block reorged or RPC issue),
-    // we'll just continue without it. The block number from the receipt is still valid.
+      // If it's a timeout or RPC error, the transaction might still succeed
+      if (
+        receiptErrorMessage.includes("timeout") ||
+        receiptErrorMessage.includes("Internal JSON-RPC error") ||
+        receiptErrorMessage.includes("network")
+      ) {
+        return {
+          success: true,
+          transactionHash: hash,
+          tokenId,
+          error:
+            "Transaction sent but receipt confirmation timed out. Please check the transaction on PolygonScan.",
+        };
+      }
+      throw receiptError;
+    }
+
     let blockHash: string | undefined;
     try {
       const block = await publicClient.getBlock({
@@ -593,12 +619,9 @@ export async function mintNFT(
   }
 }
 
-/**
- * List NFT for sale on marketplace
- */
 export async function listNFT(
   tokenId: bigint,
-  price: string, // Price in MATIC
+  price: string,
 ): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
   try {
     const walletClient = getWalletClient();
@@ -621,7 +644,6 @@ export async function listNFT(
     const priceInWei = parseEther(price);
     const publicClient = getPublicClient();
 
-    // Retry logic for RPC errors
     let listAttempts = 0;
     const maxListAttempts = 3;
     let hash: `0x${string}` | undefined;
@@ -630,7 +652,6 @@ export async function listNFT(
       try {
         listAttempts++;
 
-        // Simulate first to catch errors early
         if (publicClient && listAttempts === 1) {
           try {
             await publicClient.simulateContract({
@@ -663,7 +684,6 @@ export async function listNFT(
 
             const fullError = errorMessage || shortMessage || "";
 
-            // Don't retry on revert errors (these are real contract errors)
             if (
               fullError.includes("execution reverted") ||
               fullError.includes("revert") ||
@@ -676,13 +696,11 @@ export async function listNFT(
               };
             }
 
-            // For RPC errors, continue to retry
             if (
               !fullError.includes("Internal JSON-RPC error") &&
               !fullError.includes("timeout") &&
               !fullError.includes("network")
             ) {
-              // Not an RPC error, return the error
               return {
                 success: false,
                 error: fullError,
@@ -698,7 +716,7 @@ export async function listNFT(
           args: [NFT_CONTRACT_ADDRESS as `0x${string}`, tokenId, priceInWei],
           account,
         });
-        break; // Success, exit retry loop
+        break;
       } catch (listError: unknown) {
         const errorMessage =
           listError && typeof listError === "object" && "message" in listError
@@ -714,7 +732,6 @@ export async function listNFT(
 
         const fullError = errorMessage || shortMessage || "";
 
-        // Don't retry on user rejection or revert errors
         if (
           fullError.toLowerCase().includes("rejected") ||
           fullError.toLowerCase().includes("denied") ||
@@ -730,7 +747,6 @@ export async function listNFT(
           };
         }
 
-        // Retry on RPC errors
         if (
           (fullError.includes("Internal JSON-RPC error") ||
             fullError.includes("timeout") ||
@@ -745,10 +761,9 @@ export async function listNFT(
           await new Promise((resolve) =>
             setTimeout(resolve, 2000 * Math.pow(2, listAttempts - 1)),
           );
-          continue; // Retry
+          continue;
         }
 
-        // For other errors or if we've exhausted attempts, return error
         return {
           success: false,
           error: fullError || "Failed to list NFT",
@@ -782,98 +797,6 @@ export async function listNFT(
   }
 }
 
-/**
- * Set marketplace fee (only contract owner can call this)
- * @param fee Fee in basis points (0 = 0%, 100 = 1%, 10000 = 100%)
- */
-export async function setMarketplaceFee(
-  fee: number,
-): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
-  try {
-    const walletClient = getWalletClient();
-    if (!walletClient) {
-      return { success: false, error: "Wallet not connected" };
-    }
-
-    const [account] = await walletClient.getAddresses();
-    if (!account) {
-      return { success: false, error: "No account found" };
-    }
-
-    if (!MARKETPLACE_CONTRACT_ADDRESS) {
-      return {
-        success: false,
-        error: "Marketplace contract address not configured",
-      };
-    }
-
-    const hash = await walletClient.writeContract({
-      address: MARKETPLACE_CONTRACT_ADDRESS as `0x${string}`,
-      abi: MARKETPLACE_ABI,
-      functionName: "setMarketplaceFee",
-      args: [BigInt(fee)],
-      account,
-    });
-
-    return {
-      success: true,
-      transactionHash: hash,
-    };
-  } catch (error: any) {
-    console.error("Error setting marketplace fee:", error);
-    return {
-      success: false,
-      error: error.message || "Failed to set marketplace fee",
-    };
-  }
-}
-
-/**
- * Get current marketplace fee
- */
-export async function getMarketplaceFee(): Promise<{
-  success: boolean;
-  fee?: number;
-  error?: string;
-}> {
-  try {
-    const publicClient = getPublicClient();
-    if (!publicClient) {
-      return { success: false, error: "Failed to get public client" };
-    }
-
-    if (!MARKETPLACE_CONTRACT_ADDRESS) {
-      return {
-        success: false,
-        error: "Marketplace contract address not configured",
-      };
-    }
-
-    const fee = await publicClient.readContract({
-      address: MARKETPLACE_CONTRACT_ADDRESS as `0x${string}`,
-      abi: MARKETPLACE_ABI,
-      functionName: "marketplaceFee",
-    });
-
-    return {
-      success: true,
-      fee: Number(fee),
-    };
-  } catch (error: unknown) {
-    console.error("Error getting marketplace fee:", error);
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Failed to get marketplace fee",
-    };
-  }
-}
-
-/**
- * Get NFT owner from blockchain
- */
 export async function getNFTOwnerOnChain(
   tokenId: bigint,
 ): Promise<{ success: boolean; owner?: string; error?: string }> {
@@ -890,11 +813,10 @@ export async function getNFTOwnerOnChain(
       };
     }
 
-    // First check if token exists to avoid ownerOf revert
     try {
       const exists = await publicClient.readContract({
         address: NFT_CONTRACT_ADDRESS as `0x${string}`,
-        abi: PIXEL_MINT_NFT_ABI as any, // Type assertion needed for exists function
+        abi: PIXEL_MINT_NFT_ABI as any,
         functionName: "exists",
         args: [tokenId],
       });
@@ -906,7 +828,6 @@ export async function getNFTOwnerOnChain(
         };
       }
     } catch (existsError) {
-      // If exists function doesn't exist or fails, try ownerOf anyway
       console.warn("Could not check token existence:", existsError);
     }
 
@@ -928,7 +849,6 @@ export async function getNFTOwnerOnChain(
         ? String(error.message)
         : "";
 
-    // Check if it's a "token doesn't exist" error
     if (
       errorMessage.includes("0x7e273289") ||
       errorMessage.includes("Token does not exist") ||
@@ -947,9 +867,6 @@ export async function getNFTOwnerOnChain(
   }
 }
 
-/**
- * Check if an address is approved to transfer an NFT
- */
 export async function checkNFTApproval(
   tokenId: bigint,
   ownerAddress: string,
@@ -968,11 +885,10 @@ export async function checkNFTApproval(
       };
     }
 
-    // First check if token exists to avoid getApproved revert
     try {
       const exists = await publicClient.readContract({
         address: NFT_CONTRACT_ADDRESS as `0x${string}`,
-        abi: PIXEL_MINT_NFT_ABI as any, // Type assertion needed for exists function
+        abi: PIXEL_MINT_NFT_ABI as any,
         functionName: "exists",
         args: [tokenId],
       });
@@ -984,11 +900,9 @@ export async function checkNFTApproval(
         };
       }
     } catch (existsError) {
-      // If exists function doesn't exist or fails, continue anyway
       console.warn("Could not check token existence:", existsError);
     }
 
-    // Check if approved for all (operator approval) - this is cheaper and works for all tokens
     try {
       const isApprovedForAll = await publicClient.readContract({
         address: NFT_CONTRACT_ADDRESS as `0x${string}`,
@@ -1007,8 +921,8 @@ export async function checkNFTApproval(
       console.warn("Could not check isApprovedForAll:", approvalForAllError);
     }
 
-    // Check if this specific token is approved (only if token exists)
     try {
+      // checks if that specific token or nft is approved or not
       const approvedAddressForToken = await publicClient.readContract({
         address: NFT_CONTRACT_ADDRESS as `0x${string}`,
         abi: PIXEL_MINT_NFT_ABI,
@@ -1044,7 +958,6 @@ export async function checkNFTApproval(
         };
       }
 
-      // For other errors, assume not approved
       return {
         success: true,
         isApproved: false,
@@ -1060,110 +973,14 @@ export async function checkNFTApproval(
   }
 }
 
-/**
- * Transfer NFT from seller to buyer
- * Note: Only the NFT owner (or approved address) can call this
- */
-export async function transferNFT(
-  tokenId: bigint,
-  to: string,
-): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
-  try {
-    const walletClient = getWalletClient();
-    if (!walletClient) {
-      return { success: false, error: "Wallet not connected" };
-    }
-
-    const [account] = await walletClient.getAddresses();
-    if (!account) {
-      return { success: false, error: "No account found" };
-    }
-
-    if (!NFT_CONTRACT_ADDRESS) {
-      return {
-        success: false,
-        error: "NFT contract address not configured",
-      };
-    }
-
-    // Verify the caller owns the NFT
-    const ownerCheck = await getNFTOwnerOnChain(tokenId);
-    if (!ownerCheck.success || !ownerCheck.owner) {
-      return {
-        success: false,
-        error: "Failed to verify NFT ownership",
-      };
-    }
-
-    if (ownerCheck.owner.toLowerCase() !== account.toLowerCase()) {
-      return {
-        success: false,
-        error: "You don't own this NFT. Only the owner can transfer it.",
-      };
-    }
-
-    // Transfer the NFT
-    const hash = await walletClient.writeContract({
-      address: NFT_CONTRACT_ADDRESS as `0x${string}`,
-      abi: PIXEL_MINT_NFT_ABI,
-      functionName: "safeTransferFrom",
-      args: [account, to as `0x${string}`, tokenId],
-      account,
-    });
-
-    return {
-      success: true,
-      transactionHash: hash,
-    };
-  } catch (error: unknown) {
-    console.error("Error transferring NFT:", error);
-
-    let errorMessage = "Failed to transfer NFT";
-    if (error && typeof error === "object") {
-      const errorMessageStr =
-        ("message" in error ? String(error.message) : "") +
-        ("shortMessage" in error
-          ? String((error as { shortMessage: string }).shortMessage)
-          : "");
-
-      if (
-        errorMessageStr.toLowerCase().includes("user rejected") ||
-        errorMessageStr.toLowerCase().includes("user denied")
-      ) {
-        return {
-          success: false,
-          error: "Transaction was rejected",
-        };
-      }
-
-      if ("shortMessage" in error) {
-        errorMessage = (error as { shortMessage: string }).shortMessage;
-      } else if ("message" in error) {
-        errorMessage = (error as { message: string }).message;
-      }
-    } else if (error instanceof Error) {
-      errorMessage = error.message;
-    }
-
-    return {
-      success: false,
-      error: errorMessage,
-    };
-  }
-}
-
-/**
- * Buy NFT - uses marketplace contract if listed, otherwise direct transfer
- * Marketplace contract provides atomic swap (payment + transfer in one transaction)
- */
 export async function buyNFT(
   tokenId: bigint,
   sellerAddress: string,
-  price: string, // Price in MATIC
+  price: string,
 ): Promise<{
   success: boolean;
   transactionHash?: string;
-  transferHash?: string; // Same as transactionHash when using marketplace
+  transferHash?: string;
   error?: string;
 }> {
   try {
@@ -1184,7 +1001,6 @@ export async function buyNFT(
       };
     }
 
-    // Verify the seller actually owns the NFT on-chain (blockchain is source of truth)
     const ownerCheck = await getNFTOwnerOnChain(tokenId);
     if (!ownerCheck.success || !ownerCheck.owner) {
       return {
@@ -1196,7 +1012,6 @@ export async function buyNFT(
     const onChainOwner = ownerCheck.owner.toLowerCase();
     const normalizedBuyerAddress = account.toLowerCase();
 
-    // Check if buyer is trying to buy their own NFT (using blockchain owner)
     if (onChainOwner === normalizedBuyerAddress) {
       return {
         success: false,
@@ -1207,12 +1022,10 @@ export async function buyNFT(
 
     const priceInWei = parseEther(price);
     const publicClient = getPublicClient();
+    let hash: string | undefined;
 
-    // Try to use marketplace contract first (atomic swap - payment + transfer)
     if (MARKETPLACE_CONTRACT_ADDRESS && publicClient) {
       try {
-        // Check if NFT is listed on marketplace
-        // getListing returns: [seller, price, isActive, listedAt]
         const listing = await publicClient.readContract({
           address: MARKETPLACE_CONTRACT_ADDRESS as `0x${string}`,
           abi: MARKETPLACE_ABI,
@@ -1220,12 +1033,10 @@ export async function buyNFT(
           args: [NFT_CONTRACT_ADDRESS as `0x${string}`, tokenId],
         });
 
-        // listing is a tuple: [seller, price, isActive, listedAt]
         const isActive = listing[2];
 
         if (isActive) {
-          // NFT is listed on marketplace - use marketplace contract (atomic swap)
-          const hash = await walletClient.writeContract({
+          hash = await walletClient.writeContract({
             address: MARKETPLACE_CONTRACT_ADDRESS as `0x${string}`,
             abi: MARKETPLACE_ABI,
             functionName: "buyNFT",
@@ -1237,15 +1048,11 @@ export async function buyNFT(
           return {
             success: true,
             transactionHash: hash,
-            transferHash: hash, // Same transaction - atomic swap
+            transferHash: hash,
           };
         }
-        // NFT is not listed on marketplace - fall through to direct transfer
-        // This allows free listings (database only) but trades atomic swaps for lower cost
       } catch (marketplaceError) {
         console.warn("Marketplace purchase failed:", marketplaceError);
-        // If it's a read error (listing doesn't exist), return error
-        // Otherwise fall through to direct transfer for backwards compatibility
         const errorMessage =
           marketplaceError &&
           typeof marketplaceError === "object" &&
@@ -1263,57 +1070,6 @@ export async function buyNFT(
               "This NFT is not listed on the marketplace. Please ask the seller to list it on the marketplace first.",
           };
         }
-        // Fall through to direct transfer for other errors
-      }
-    }
-
-    // Fallback: Direct transfer (requires seller to approve buyer or transfer manually)
-    // This is less ideal but works if marketplace isn't available
-    const actualSellerAddress = ownerCheck.owner;
-
-    // Check if seller has approved the buyer to transfer the NFT
-    let canAutoTransfer = false;
-    if (publicClient) {
-      try {
-        const approvalCheck = await checkNFTApproval(
-          tokenId,
-          actualSellerAddress,
-          account,
-        );
-
-        if (approvalCheck.success && approvalCheck.isApproved) {
-          canAutoTransfer = true;
-        }
-      } catch (error) {
-        console.warn("Could not check NFT approval:", error);
-      }
-    }
-
-    // Step 1: Send payment to the actual blockchain owner
-    const paymentHash = await walletClient.sendTransaction({
-      to: actualSellerAddress as `0x${string}`,
-      value: priceInWei,
-      account,
-    });
-
-    // Step 2: If buyer is approved, automatically transfer the NFT
-    let transferHash: string | undefined;
-    if (canAutoTransfer) {
-      try {
-        const transferResult = await walletClient.writeContract({
-          address: NFT_CONTRACT_ADDRESS as `0x${string}`,
-          abi: PIXEL_MINT_NFT_ABI,
-          functionName: "safeTransferFrom",
-          args: [actualSellerAddress as `0x${string}`, account, tokenId],
-          account,
-        });
-        transferHash = transferResult;
-        console.log("NFT automatically transferred after payment");
-      } catch (transferError) {
-        console.warn(
-          "Failed to auto-transfer NFT (seller may need to transfer manually):",
-          transferError,
-        );
       }
     }
 
@@ -1324,28 +1080,21 @@ export async function buyNFT(
       error?: string;
     } = {
       success: true,
-      transactionHash: paymentHash,
+      transactionHash: hash as string,
     };
-
-    if (transferHash) {
-      result.transferHash = transferHash;
-    }
 
     return result;
   } catch (error: unknown) {
     console.error("Error buying NFT:", error);
 
-    // Check if user rejected the transaction
     let errorMessage = "Failed to buy NFT";
     if (error && typeof error === "object") {
-      // Safely extract error messages without JSON.stringify (which fails on BigInt)
       const errorMessageStr =
         ("message" in error ? String(error.message) : "") +
         ("shortMessage" in error
           ? String((error as { shortMessage: string }).shortMessage)
           : "");
 
-      // Check for user rejection without using JSON.stringify
       if (
         errorMessageStr.toLowerCase().includes("user rejected") ||
         errorMessageStr.toLowerCase().includes("user denied") ||
@@ -1359,7 +1108,6 @@ export async function buyNFT(
         };
       }
 
-      // Extract error message
       if ("shortMessage" in error) {
         errorMessage = (error as { shortMessage: string }).shortMessage;
       } else if ("message" in error) {
@@ -1376,9 +1124,6 @@ export async function buyNFT(
   }
 }
 
-/**
- * Get current block info
- */
 export async function getCurrentBlock(): Promise<{
   success: boolean;
   blockNumber?: bigint;
@@ -1393,7 +1138,6 @@ export async function getCurrentBlock(): Promise<{
 
     const blockNumber = await publicClient.getBlockNumber();
 
-    // Try to get the block, but handle errors gracefully
     try {
       const block = await publicClient.getBlock({ blockNumber });
       return {
@@ -1403,7 +1147,6 @@ export async function getCurrentBlock(): Promise<{
       };
     } catch (blockError: unknown) {
       console.error("Error fetching block:", blockError);
-      // If we can't get the block, still return the block number
       return {
         success: true,
         blockNumber: blockNumber,
@@ -1421,78 +1164,6 @@ export async function getCurrentBlock(): Promise<{
     return {
       success: false,
       error: errorMessage,
-    };
-  }
-}
-
-/**
- * Get transaction history for an NFT
- */
-export async function getNFTTransactionHistory(
-  contractAddress: string,
-  tokenId: bigint,
-): Promise<{
-  success: boolean;
-  transactions?: Array<{
-    hash: string;
-    from: string;
-    to: string;
-    value: string;
-    blockNumber: bigint;
-    timestamp: Date;
-  }>;
-  error?: string;
-}> {
-  try {
-    const publicClient = getPublicClient();
-    if (!publicClient) {
-      return { success: false, error: "Failed to get public client" };
-    }
-
-    // This is a simplified version - in production, you'd query Transfer events
-    // For now, returning empty array as we need to track this in our database
-    return {
-      success: true,
-      transactions: [],
-    };
-  } catch (error: any) {
-    console.error("Error getting transaction history:", error);
-    return {
-      success: false,
-      error: error.message || "Failed to get transaction history",
-    };
-  }
-}
-
-/**
- * Get NFT owner from blockchain
- */
-export async function getNFTOwner(
-  contractAddress: string,
-  tokenId: bigint,
-): Promise<{ success: boolean; owner?: string; error?: string }> {
-  try {
-    const publicClient = getPublicClient();
-    if (!publicClient) {
-      return { success: false, error: "Failed to get public client" };
-    }
-
-    const owner = await publicClient.readContract({
-      address: contractAddress as `0x${string}`,
-      abi: PIXEL_MINT_NFT_ABI,
-      functionName: "ownerOf",
-      args: [tokenId],
-    });
-
-    return {
-      success: true,
-      owner: getAddress(owner),
-    };
-  } catch (error: any) {
-    console.error("Error getting NFT owner:", error);
-    return {
-      success: false,
-      error: error.message || "Failed to get NFT owner",
     };
   }
 }
