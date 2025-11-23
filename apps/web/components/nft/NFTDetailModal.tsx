@@ -709,7 +709,7 @@ export default function NFTDetailModal({
                       ${(parseFloat(nft.price) * 2495.78).toFixed(0)}
                     </p>
                     <p className="text-lg text-muted-foreground font-medium">
-                      ({parseFloat(nft.price).toFixed(4)} MATIC)
+                      ({parseFloat(nft.price).toFixed(4)} POL)
                     </p>
                   </div>
                 </div>
@@ -836,7 +836,7 @@ export default function NFTDetailModal({
                           {showListDialog ? (
                             <div className="space-y-3 p-4 bg-background/50 border border-border rounded-lg">
                               <label className="text-sm font-medium text-foreground">
-                                Set Price (MATIC)
+                                Set Price (POL)
                               </label>
                               <input
                                 type="number"
@@ -1375,7 +1375,7 @@ export default function NFTDetailModal({
                               <ShoppingCart className="w-6 h-6" />
                               <span>
                                 Buy Now for {parseFloat(nft.price).toFixed(4)}{" "}
-                                MATIC
+                                POL
                               </span>
                             </>
                           )}

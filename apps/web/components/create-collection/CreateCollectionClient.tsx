@@ -12,9 +12,7 @@ import {
 } from "@/actions/collection.actions";
 import { Loader } from "@/components/ui/loader";
 
-// Image constants from Figma
-const imgLayer1 =
-  "https://www.figma.com/api/mcp/asset/0d6a0ec9-e2f4-41ff-9890-bee727d9ede1";
+import UploadIcon from "@/public/upload.svg";
 
 type User = {
   id?: string;
@@ -30,16 +28,18 @@ type CreateCollectionClientProps = {
 const collectionSchema = z.object({
   name: z.string().min(1, "Please enter a collection name").trim(),
   description: z.string().min(1, "Please enter a description").trim(),
-  imageFile: z.instanceof(File, { message: "Please upload a collection image" }).refine(
-    (file) => {
-      const validTypes = ["image/png", "image/jpeg", "image/svg+xml"];
-      return validTypes.includes(file.type);
-    },
-    { message: "Only PNG, JPEG, and SVG files are supported" }
-  ).refine(
-    (file) => file.size <= 5 * 1024 * 1024,
-    { message: "Image size must be less than 5MB" }
-  ),
+  imageFile: z
+    .instanceof(File, { message: "Please upload a collection image" })
+    .refine(
+      (file) => {
+        const validTypes = ["image/png", "image/jpeg", "image/svg+xml"];
+        return validTypes.includes(file.type);
+      },
+      { message: "Only PNG, JPEG, and SVG files are supported" },
+    )
+    .refine((file) => file.size <= 5 * 1024 * 1024, {
+      message: "Image size must be less than 5MB",
+    }),
 });
 
 type CollectionFormData = z.infer<typeof collectionSchema>;
@@ -201,7 +201,10 @@ export default function CreateCollectionClient({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="max-w-[1154px] mx-auto">
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="max-w-[1154px] mx-auto"
+        >
           {/* Collection Image */}
           <div className="mb-8">
             <label className="text-foreground text-sm font-medium block mb-2">
@@ -222,7 +225,9 @@ export default function CreateCollectionClient({
                     className={`relative bg-card border border-dashed rounded-lg h-64 flex flex-col items-center justify-center cursor-pointer group hover:border-foreground/50 transition-all ${
                       errors.imageFile ? "border-destructive" : "border-border"
                     }`}
-                    onClick={() => !imagePreview && fileInputRef.current?.click()}
+                    onClick={() =>
+                      !imagePreview && fileInputRef.current?.click()
+                    }
                   >
                     {imagePreview ? (
                       <div className="relative w-full h-full">
@@ -247,7 +252,7 @@ export default function CreateCollectionClient({
                       <>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={imgLayer1}
+                          src={UploadIcon.src}
                           alt="Upload icon"
                           className="w-[70px] h-[81px] mb-4"
                         />

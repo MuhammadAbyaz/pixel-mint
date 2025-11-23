@@ -23,7 +23,7 @@ export const UserDropdown = ({
       {
         icon: "ix:user-profile-filled",
         label: "Your profile",
-        href: user.id ? `/profile/${user.id}` : "#",
+        href: user.id ? `/profile/${user.id}` : "/auth/login",
         action: () => {},
       },
       {
@@ -61,10 +61,7 @@ export const UserDropdown = ({
         className="flex items-center gap-1.5 font-medium"
         href={item.href ?? "#"}
       >
-        <Icon
-          icon={item.icon}
-          className="size-5 text-muted-foreground"
-        />
+        <Icon icon={item.icon} className="size-5 text-muted-foreground" />
         {item.label}
       </Link>
     </DropdownMenuItem>

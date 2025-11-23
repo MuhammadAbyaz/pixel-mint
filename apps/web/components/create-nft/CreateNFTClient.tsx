@@ -464,7 +464,9 @@ export default function CreateNFTClient({
                 }
 
                 // Step 4b: Wait a moment for the mint transaction to be fully processed
-                toast.info("Waiting for mint to be confirmed before listing...");
+                toast.info(
+                  "Waiting for mint to be confirmed before listing...",
+                );
                 await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2 seconds
 
                 // Step 4c: List NFT on marketplace contract (~0.01-0.02 POL with lazy listing)
@@ -490,7 +492,9 @@ export default function CreateNFTClient({
                   }
 
                   // Update database to reflect listing
-                  const { listNFTForSale } = await import("@/actions/nft.actions");
+                  const { listNFTForSale } = await import(
+                    "@/actions/nft.actions"
+                  );
                   const dbResult = await listNFTForSale(nftId, data.price);
                   if (dbResult.success) {
                     toast.success(
@@ -903,7 +907,7 @@ export default function CreateNFTClient({
                   }`}
                 />
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                  <span className="text-foreground text-sm">ETH</span>
+                  <span className="text-foreground text-sm">POL</span>
                   <span className="text-muted-foreground text-sm">
                     {watchedPrice
                       ? `($${(parseFloat(watchedPrice) * 2495.78).toFixed(2)})`

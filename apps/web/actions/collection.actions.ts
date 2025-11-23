@@ -199,12 +199,19 @@ export async function getTrendingCollections(
         categories: collections.categories,
         createdAt: collections.createdAt,
         updatedAt: collections.updatedAt,
-        totalLikes: sql<number>`COALESCE(SUM(CASE WHEN ${nfts.isListed} IS NOT NULL THEN ${nfts.likes} ELSE 0 END), 0)`.as("totalLikes"),
+        totalLikes:
+          sql<number>`COALESCE(SUM(CASE WHEN ${nfts.isListed} IS NOT NULL THEN ${nfts.likes} ELSE 0 END), 0)`.as(
+            "totalLikes",
+          ),
       })
       .from(collections)
       .leftJoin(nfts, eq(collections.id, nfts.collectionId))
       .groupBy(collections.id)
-      .orderBy(desc(sql<number>`COALESCE(SUM(CASE WHEN ${nfts.isListed} IS NOT NULL THEN ${nfts.likes} ELSE 0 END), 0)`))
+      .orderBy(
+        desc(
+          sql<number>`COALESCE(SUM(CASE WHEN ${nfts.isListed} IS NOT NULL THEN ${nfts.likes} ELSE 0 END), 0)`,
+        ),
+      )
       .limit(limit);
 
     // Filter out collections with 0 total likes and map results
@@ -216,6 +223,36 @@ export async function getTrendingCollections(
       }));
   } catch (error) {
     console.error("Error fetching trending collections:", error);
+    return [];
+  }
+}
+
+export async function getAllCategories(): Promise<string[]> {
+  try {
+    // Fetch all collections with non-null categories
+    const collectionsWithCategories = await db
+      .select({
+        categories: collections.categories,
+      })
+      .from(collections)
+      .where(isNotNull(collections.categories));
+
+    // Flatten and get unique categories
+    const allCategories = new Set<string>();
+    collectionsWithCategories.forEach((collection) => {
+      if (collection.categories && Array.isArray(collection.categories)) {
+        collection.categories.forEach((category) => {
+          if (category && category.trim()) {
+            allCategories.add(category.trim());
+          }
+        });
+      }
+    });
+
+    // Convert Set to sorted array
+    return Array.from(allCategories).sort();
+  } catch (error) {
+    console.error("Error fetching categories:", error);
     return [];
   }
 }

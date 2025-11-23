@@ -77,7 +77,7 @@ export default function PriceHistory({ nftId }: PriceHistoryProps) {
             day: "numeric",
           })
         : `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
-    
+
     return {
       date: formattedDate,
       price: point.price,
@@ -101,7 +101,7 @@ export default function PriceHistory({ nftId }: PriceHistoryProps) {
             className="text-xs"
             tick={{ fill: "currentColor" }}
             label={{
-              value: "Price (MATIC)",
+              value: "Price (POL)",
               angle: -90,
               position: "insideLeft",
               style: { textAnchor: "middle", fill: "currentColor" },
@@ -114,7 +114,7 @@ export default function PriceHistory({ nftId }: PriceHistoryProps) {
               borderRadius: "8px",
             }}
             labelStyle={{ color: "hsl(var(--foreground))" }}
-            formatter={(value: number) => [`${value} MATIC`, "Price"]}
+            formatter={(value: number) => [`${value} POL`, "Price"]}
           />
           <Line
             type="monotone"
@@ -150,13 +150,16 @@ export default function PriceHistory({ nftId }: PriceHistoryProps) {
                     {point.type === "sale" ? "Sale" : "Listed"}
                   </span>
                   <span className="text-foreground font-semibold">
-                    {point.price} MATIC
+                    {point.price} POL
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {typeof window !== "undefined"
                     ? new Date(point.date).toLocaleString()
-                    : new Date(point.date).toISOString().slice(0, 16).replace("T", " ")}
+                    : new Date(point.date)
+                        .toISOString()
+                        .slice(0, 16)
+                        .replace("T", " ")}
                 </p>
                 {point.transactionHash && (
                   <a
@@ -176,4 +179,3 @@ export default function PriceHistory({ nftId }: PriceHistoryProps) {
     </div>
   );
 }
-

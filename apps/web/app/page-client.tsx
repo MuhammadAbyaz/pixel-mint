@@ -1,6 +1,12 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Search, ChevronLeft, ChevronRight, Heart, CheckCircle2 } from "lucide-react";
+import {
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  CheckCircle2,
+} from "lucide-react";
 import Link from "next/link";
 import { getAllNFTs } from "@/actions/nft.actions";
 import type { NFT } from "@/actions/nft.actions";
@@ -10,18 +16,17 @@ import type { TrendingCreator } from "@/actions/user.actions";
 import { getTrendingCreators, getUserById } from "@/actions/user.actions";
 import { Loader as LoaderComponent } from "@/components/ui/loader";
 import NFTDetailModal from "@/components/nft/NFTDetailModal";
-
-// Image constants from Figma (fallback for creator avatars)
-const imgRectangle26 =
-  "https://www.figma.com/api/mcp/asset/a7d9eba4-cb3c-4e45-a51d-9c5274788fc7";
+import DefaultAvatar from "@/public/avatar.png";
 
 function MarketPlace({
   initialTrendingCollections,
   initialTrendingCreators,
+  categories,
   currentUserId,
 }: {
   initialTrendingCollections: TrendingCollection[];
   initialTrendingCreators: TrendingCreator[];
+  categories: string[];
   currentUserId?: string | null;
 }) {
   const [activeFilter, setActiveFilter] = useState("All");
@@ -169,36 +174,19 @@ function MarketPlace({
             >
               All
             </button>
-            <button
-              onClick={() => setActiveFilter("Gaming")}
-              className={`h-10 px-4 rounded-lg border border-border font-medium text-sm transition-all duration-300 hover:scale-105 hover:border-foreground/50 ${
-                activeFilter === "Gaming"
-                  ? "bg-card text-foreground"
-                  : "bg-card text-foreground hover:bg-card/80"
-              }`}
-            >
-              Gaming
-            </button>
-            <button
-              onClick={() => setActiveFilter("Art")}
-              className={`h-10 px-4 rounded-lg border border-border font-medium text-sm transition-all duration-300 hover:scale-105 hover:border-foreground/50 ${
-                activeFilter === "Art"
-                  ? "bg-card text-foreground"
-                  : "bg-card text-foreground hover:bg-card/80"
-              }`}
-            >
-              Art
-            </button>
-            <button
-              onClick={() => setActiveFilter("More")}
-              className={`h-10 px-4 rounded-lg border border-border font-medium text-sm transition-all duration-300 hover:scale-105 hover:border-foreground/50 ${
-                activeFilter === "More"
-                  ? "bg-card text-foreground"
-                  : "bg-card text-foreground hover:bg-card/80"
-              }`}
-            >
-              More
-            </button>
+            {categories.map((category) => (
+              <button
+                key={category}
+                onClick={() => setActiveFilter(category)}
+                className={`h-10 px-4 rounded-lg border border-border font-medium text-sm transition-all duration-300 hover:scale-105 hover:border-foreground/50 ${
+                  activeFilter === category
+                    ? "bg-card text-foreground"
+                    : "bg-card text-foreground hover:bg-card/80"
+                }`}
+              >
+                {category}
+              </button>
+            ))}
           </div>
 
           {/* Search Bar */}
@@ -320,7 +308,7 @@ function MarketPlace({
                   <div className="relative">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={creator.image || imgRectangle26}
+                      src={creator.image || DefaultAvatar.src}
                       alt={creator.name || creator.email || "Creator"}
                       className="w-[64px] h-[64px] rounded-full object-cover transition-transform duration-300 group-hover:scale-110"
                     />
@@ -450,7 +438,7 @@ function MarketPlace({
                         {nft.name}
                       </p>
                       <p className="text-muted-foreground text-xs transition-colors group-hover:text-foreground/70">
-                        {parseFloat(nft.price).toFixed(4)} ETH
+                        {parseFloat(nft.price).toFixed(4)} POL
                       </p>
                     </div>
                   </div>

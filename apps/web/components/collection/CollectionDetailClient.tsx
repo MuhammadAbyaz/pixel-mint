@@ -29,10 +29,7 @@ export default function CollectionDetailClient({
       <main className="px-4 sm:px-8 lg:px-[120px] pt-[120px] pb-[100px] max-w-7xl mx-auto">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-8 animate-in fade-in slide-in-from-top-4 duration-700">
-          <Link
-            href="/"
-            className="hover:text-foreground transition-colors"
-          >
+          <Link href="/" className="hover:text-foreground transition-colors">
             Home
           </Link>
           <ChevronRight className="w-4 h-4" />
@@ -154,7 +151,7 @@ export default function CollectionDetailClient({
                           Price
                         </p>
                         <p className="text-foreground text-base font-semibold">
-                          {parseFloat(nft.price).toFixed(4)} ETH
+                          {parseFloat(nft.price).toFixed(4)} POL
                         </p>
                       </div>
                     </div>
@@ -190,8 +187,8 @@ export default function CollectionDetailClient({
               prev.map((nft) =>
                 nft.id === updatedNFT.id
                   ? { ...nft, likes: updatedNFT.likes }
-                  : nft
-              )
+                  : nft,
+              ),
             );
           }}
         />
@@ -199,4 +196,3 @@ export default function CollectionDetailClient({
     </div>
   );
 }
-

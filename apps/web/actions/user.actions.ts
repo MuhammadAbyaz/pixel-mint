@@ -294,3 +294,48 @@ export async function getTrendingCreators(
     return [];
   }
 }
+
+export async function getCreatorProfile(
+  id: string,
+): Promise<TrendingCreator | null> {
+  try {
+    const [creator] = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        image: users.image,
+        emailVerified: users.emailVerified,
+        walletAddress: users.walletAddress,
+        totalLikes:
+          sql<number>`COALESCE(SUM(CASE WHEN ${nfts.isListed} IS NOT NULL THEN ${nfts.likes} ELSE 0 END), 0)`.as(
+            "totalLikes",
+          ),
+        collectionCount: sql<number>`COUNT(DISTINCT ${collections.id})`.as(
+          "collectionCount",
+        ),
+      })
+      .from(users)
+      .leftJoin(collections, eq(users.id, collections.userId))
+      .leftJoin(nfts, eq(collections.id, nfts.collectionId))
+      .where(eq(users.id, id))
+      .groupBy(users.id)
+      .limit(1);
+
+    if (!creator) return null;
+
+    return {
+      id: creator.id,
+      name: creator.name,
+      email: creator.email,
+      image: creator.image,
+      emailVerified: creator.emailVerified,
+      walletAddress: creator.walletAddress,
+      totalLikes: Number(creator.totalLikes) || 0,
+      collectionCount: Number(creator.collectionCount) || 0,
+    };
+  } catch (error) {
+    console.error("Error fetching creator profile:", error);
+    return null;
+  }
+}
