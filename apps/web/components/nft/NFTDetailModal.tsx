@@ -769,7 +769,7 @@ export default function NFTDetailModal({
                   </div>
                 </div>
               </div>
-              ;{/* Action Buttons - Fixed at bottom */}
+              {/* Action Buttons - Fixed at bottom */}
               <div className="pt-6 border-t border-border mt-auto flex-shrink-0">
                 {(() => {
                   const isOwnNFT =
@@ -850,7 +850,12 @@ export default function NFTDetailModal({
                               <div className="flex gap-2">
                                 <Button
                                   onClick={async () => {
-                                    if (!nftId || !listPrice || isListing || !nft)
+                                    if (
+                                      !nftId ||
+                                      !listPrice ||
+                                      isListing ||
+                                      !nft
+                                    )
                                       return;
                                     const priceNum = Number(listPrice);
                                     if (isNaN(priceNum) || priceNum <= 0) {
@@ -882,19 +887,25 @@ export default function NFTDetailModal({
 
                                       const walletClient = getWalletClient();
                                       if (!walletClient) {
-                                        toast.error("Please connect your wallet");
+                                        toast.error(
+                                          "Please connect your wallet",
+                                        );
                                         setIsListing(false);
                                         return;
                                       }
 
-                                      const [account] = await walletClient.getAddresses();
+                                      const [account] =
+                                        await walletClient.getAddresses();
                                       if (!account) {
                                         toast.error("No wallet account found");
                                         setIsListing(false);
                                         return;
                                       }
 
-                                      if (!MARKETPLACE_CONTRACT_ADDRESS || !NFT_CONTRACT_ADDRESS) {
+                                      if (
+                                        !MARKETPLACE_CONTRACT_ADDRESS ||
+                                        !NFT_CONTRACT_ADDRESS
+                                      ) {
                                         toast.error("Contracts not configured");
                                         setIsListing(false);
                                         return;
@@ -905,16 +916,21 @@ export default function NFTDetailModal({
                                       let needsApproval = true;
                                       if (publicClient && nft.tokenId) {
                                         try {
-                                          const approvalCheck = await checkNFTApproval(
-                                            BigInt(nft.tokenId),
-                                            account,
-                                            MARKETPLACE_CONTRACT_ADDRESS,
-                                          );
+                                          const approvalCheck =
+                                            await checkNFTApproval(
+                                              BigInt(nft.tokenId),
+                                              account,
+                                              MARKETPLACE_CONTRACT_ADDRESS,
+                                            );
                                           needsApproval = !(
-                                            approvalCheck.success && approvalCheck.isApproved
+                                            approvalCheck.success &&
+                                            approvalCheck.isApproved
                                           );
                                         } catch (error) {
-                                          console.warn("Could not check approval:", error);
+                                          console.warn(
+                                            "Could not check approval:",
+                                            error,
+                                          );
                                         }
                                       }
 
@@ -925,18 +941,26 @@ export default function NFTDetailModal({
                                         );
                                         // Always use the NFT_CONTRACT_ADDRESS from env, not from database
                                         // Database might have old/incorrect contract addresses
-                                        const nftContractAddress = NFT_CONTRACT_ADDRESS as `0x${string}`;
-                                        
+                                        const nftContractAddress =
+                                          NFT_CONTRACT_ADDRESS as `0x${string}`;
+
                                         if (!nftContractAddress) {
-                                          toast.error("NFT contract address not configured");
+                                          toast.error(
+                                            "NFT contract address not configured",
+                                          );
                                           setIsListing(false);
                                           return;
                                         }
 
                                         try {
                                           // Verify contract addresses are valid
-                                          if (!nftContractAddress || !MARKETPLACE_CONTRACT_ADDRESS) {
-                                            toast.error("Contract addresses not configured");
+                                          if (
+                                            !nftContractAddress ||
+                                            !MARKETPLACE_CONTRACT_ADDRESS
+                                          ) {
+                                            toast.error(
+                                              "Contract addresses not configured",
+                                            );
                                             setIsListing(false);
                                             return;
                                           }
@@ -946,46 +970,76 @@ export default function NFTDetailModal({
                                           const maxApprovalAttempts = 3;
                                           let approvalSuccess = false;
 
-                                          while (approvalAttempts < maxApprovalAttempts && !approvalSuccess) {
+                                          while (
+                                            approvalAttempts <
+                                              maxApprovalAttempts &&
+                                            !approvalSuccess
+                                          ) {
                                             try {
                                               approvalAttempts++;
-                                              
+
                                               // Simulate the transaction first to catch errors early (only on first attempt)
-                                              if (approvalAttempts === 1 && publicClient) {
+                                              if (
+                                                approvalAttempts === 1 &&
+                                                publicClient
+                                              ) {
                                                 try {
-                                                  await publicClient.simulateContract({
-                                                    address: nftContractAddress,
-                                                    abi: PIXEL_MINT_NFT_ABI,
-                                                    functionName: "setApprovalForAll",
-                                                    args: [
-                                                      MARKETPLACE_CONTRACT_ADDRESS as `0x${string}`,
-                                                      true,
-                                                    ],
-                                                    account,
-                                                  });
+                                                  await publicClient.simulateContract(
+                                                    {
+                                                      address:
+                                                        nftContractAddress,
+                                                      abi: PIXEL_MINT_NFT_ABI,
+                                                      functionName:
+                                                        "setApprovalForAll",
+                                                      args: [
+                                                        MARKETPLACE_CONTRACT_ADDRESS as `0x${string}`,
+                                                        true,
+                                                      ],
+                                                      account,
+                                                    },
+                                                  );
                                                 } catch (simulateError) {
-                                                  console.error("Simulation error:", simulateError);
+                                                  console.error(
+                                                    "Simulation error:",
+                                                    simulateError,
+                                                  );
                                                   const simErrorMsg =
                                                     simulateError &&
-                                                    typeof simulateError === "object" &&
+                                                    typeof simulateError ===
+                                                      "object" &&
                                                     "message" in simulateError
-                                                      ? String(simulateError.message)
+                                                      ? String(
+                                                          simulateError.message,
+                                                        )
                                                       : "";
-                                                  
+
                                                   // Don't retry on revert errors (these are real contract errors)
-                                                  if (simErrorMsg.includes("revert") || simErrorMsg.includes("execution reverted")) {
+                                                  if (
+                                                    simErrorMsg.includes(
+                                                      "revert",
+                                                    ) ||
+                                                    simErrorMsg.includes(
+                                                      "execution reverted",
+                                                    )
+                                                  ) {
                                                     toast.error(
                                                       "Cannot approve marketplace. Please check: 1) You own NFTs from this contract, 2) Contract address is correct, 3) You have sufficient POL for gas.",
                                                     );
                                                     setIsListing(false);
                                                     return;
                                                   }
-                                                  
+
                                                   // For RPC errors, continue to retry
                                                   if (
-                                                    !simErrorMsg.includes("Internal JSON-RPC error") &&
-                                                    !simErrorMsg.includes("timeout") &&
-                                                    !simErrorMsg.includes("network")
+                                                    !simErrorMsg.includes(
+                                                      "Internal JSON-RPC error",
+                                                    ) &&
+                                                    !simErrorMsg.includes(
+                                                      "timeout",
+                                                    ) &&
+                                                    !simErrorMsg.includes(
+                                                      "network",
+                                                    )
                                                   ) {
                                                     throw simulateError;
                                                   }
@@ -995,7 +1049,8 @@ export default function NFTDetailModal({
                                               await walletClient.writeContract({
                                                 address: nftContractAddress,
                                                 abi: PIXEL_MINT_NFT_ABI,
-                                                functionName: "setApprovalForAll",
+                                                functionName:
+                                                  "setApprovalForAll",
                                                 args: [
                                                   MARKETPLACE_CONTRACT_ADDRESS as `0x${string}`,
                                                   true,
@@ -1003,62 +1058,112 @@ export default function NFTDetailModal({
                                                 account,
                                               });
                                               approvalSuccess = true;
-                                              toast.success("Marketplace approved!");
+                                              toast.success(
+                                                "Marketplace approved!",
+                                              );
                                               break; // Success, exit retry loop
                                             } catch (approvalError: unknown) {
                                               const errorMessage =
                                                 approvalError &&
-                                                typeof approvalError === "object" &&
+                                                typeof approvalError ===
+                                                  "object" &&
                                                 "message" in approvalError
-                                                  ? String(approvalError.message)
+                                                  ? String(
+                                                      approvalError.message,
+                                                    )
                                                   : "";
-                                              
+
                                               const shortMessage =
                                                 approvalError &&
-                                                typeof approvalError === "object" &&
+                                                typeof approvalError ===
+                                                  "object" &&
                                                 "shortMessage" in approvalError
-                                                  ? String((approvalError as { shortMessage: string }).shortMessage)
+                                                  ? String(
+                                                      (
+                                                        approvalError as {
+                                                          shortMessage: string;
+                                                        }
+                                                      ).shortMessage,
+                                                    )
                                                   : "";
-                                              
-                                              const fullError = errorMessage || shortMessage || "";
-                                              
+
+                                              const fullError =
+                                                errorMessage ||
+                                                shortMessage ||
+                                                "";
+
                                               // Don't retry on user rejection or revert errors
                                               if (
-                                                fullError.toLowerCase().includes("rejected") ||
-                                                fullError.toLowerCase().includes("denied") ||
-                                                fullError.toLowerCase().includes("user rejected") ||
-                                                fullError.includes("execution reverted") ||
+                                                fullError
+                                                  .toLowerCase()
+                                                  .includes("rejected") ||
+                                                fullError
+                                                  .toLowerCase()
+                                                  .includes("denied") ||
+                                                fullError
+                                                  .toLowerCase()
+                                                  .includes("user rejected") ||
+                                                fullError.includes(
+                                                  "execution reverted",
+                                                ) ||
                                                 fullError.includes("revert")
                                               ) {
-                                                if (fullError.includes("revert") || fullError.includes("execution reverted")) {
+                                                if (
+                                                  fullError.includes(
+                                                    "revert",
+                                                  ) ||
+                                                  fullError.includes(
+                                                    "execution reverted",
+                                                  )
+                                                ) {
                                                   toast.error(
                                                     "Approval failed. Please verify: 1) You own NFTs from this contract, 2) Contract addresses are correct, 3) You have sufficient POL for gas.",
                                                   );
                                                 } else {
-                                                  toast.info("Approval cancelled");
+                                                  toast.info(
+                                                    "Approval cancelled",
+                                                  );
                                                 }
                                                 setIsListing(false);
                                                 return;
                                               }
-                                              
+
                                               // Retry on RPC errors
                                               if (
-                                                (fullError.includes("Internal JSON-RPC error") ||
-                                                 fullError.includes("timeout") ||
-                                                 fullError.includes("network") ||
-                                                 fullError.includes("ECONNREFUSED") ||
-                                                 fullError.includes("fetch failed")) &&
-                                                approvalAttempts < maxApprovalAttempts
+                                                (fullError.includes(
+                                                  "Internal JSON-RPC error",
+                                                ) ||
+                                                  fullError.includes(
+                                                    "timeout",
+                                                  ) ||
+                                                  fullError.includes(
+                                                    "network",
+                                                  ) ||
+                                                  fullError.includes(
+                                                    "ECONNREFUSED",
+                                                  ) ||
+                                                  fullError.includes(
+                                                    "fetch failed",
+                                                  )) &&
+                                                approvalAttempts <
+                                                  maxApprovalAttempts
                                               ) {
                                                 console.warn(
                                                   `RPC error during approval, retrying (${approvalAttempts}/${maxApprovalAttempts})...`,
                                                 );
                                                 await new Promise((resolve) =>
-                                                  setTimeout(resolve, 2000 * Math.pow(2, approvalAttempts - 1)),
+                                                  setTimeout(
+                                                    resolve,
+                                                    2000 *
+                                                      Math.pow(
+                                                        2,
+                                                        approvalAttempts - 1,
+                                                      ),
+                                                  ),
                                                 );
                                                 continue; // Retry
                                               }
-                                              
+
                                               // For other errors or if we've exhausted attempts, throw
                                               throw approvalError;
                                             }
@@ -1072,15 +1177,20 @@ export default function NFTDetailModal({
                                             return;
                                           }
                                         } catch (approvalError) {
-                                          console.error("Approval error:", approvalError);
+                                          console.error(
+                                            "Approval error:",
+                                            approvalError,
+                                          );
                                           const errorMessage =
                                             approvalError &&
                                             typeof approvalError === "object" &&
                                             "message" in approvalError
                                               ? String(approvalError.message)
                                               : "";
-                                          
-                                          toast.error(`Approval failed: ${errorMessage || "Unknown error"}`);
+
+                                          toast.error(
+                                            `Approval failed: ${errorMessage || "Unknown error"}`,
+                                          );
                                           setIsListing(false);
                                           return;
                                         }
@@ -1098,27 +1208,43 @@ export default function NFTDetailModal({
 
                                       if (!listResult.success) {
                                         toast.error(
-                                          listResult.error || "Failed to list on marketplace",
+                                          listResult.error ||
+                                            "Failed to list on marketplace",
                                         );
                                         setIsListing(false);
                                         return;
                                       }
 
                                       // Wait for transaction confirmation
-                                      if (listResult.transactionHash && publicClient) {
-                                        toast.info("Waiting for transaction confirmation...");
+                                      if (
+                                        listResult.transactionHash &&
+                                        publicClient
+                                      ) {
+                                        toast.info(
+                                          "Waiting for transaction confirmation...",
+                                        );
                                         try {
-                                          await publicClient.waitForTransactionReceipt({
-                                            hash: listResult.transactionHash as `0x${string}`,
-                                          });
-                                          toast.success("NFT listed on marketplace!");
+                                          await publicClient.waitForTransactionReceipt(
+                                            {
+                                              hash: listResult.transactionHash as `0x${string}`,
+                                            },
+                                          );
+                                          toast.success(
+                                            "NFT listed on marketplace!",
+                                          );
                                         } catch (receiptError) {
-                                          console.warn("Receipt error:", receiptError);
+                                          console.warn(
+                                            "Receipt error:",
+                                            receiptError,
+                                          );
                                         }
                                       }
 
                                       // Step 4: Update database
-                                      const result = await listNFTForSale(nftId, listPrice);
+                                      const result = await listNFTForSale(
+                                        nftId,
+                                        listPrice,
+                                      );
                                       if (result.success) {
                                         setNft({
                                           ...nft,
@@ -1132,31 +1258,57 @@ export default function NFTDetailModal({
                                         );
                                         await loadNFTDetails();
                                       } else {
-                                        toast.error(result.error || "Failed to update database");
+                                        toast.error(
+                                          result.error ||
+                                            "Failed to update database",
+                                        );
                                       }
                                     } catch (error) {
-                                      console.error("Error listing NFT:", error);
+                                      console.error(
+                                        "Error listing NFT:",
+                                        error,
+                                      );
                                       const errorMessage =
-                                        error && typeof error === "object" && "message" in error
+                                        error &&
+                                        typeof error === "object" &&
+                                        "message" in error
                                           ? String(error.message)
                                           : "";
                                       const shortMessage =
                                         error &&
                                         typeof error === "object" &&
                                         "shortMessage" in error
-                                          ? String((error as { shortMessage: string }).shortMessage)
+                                          ? String(
+                                              (
+                                                error as {
+                                                  shortMessage: string;
+                                                }
+                                              ).shortMessage,
+                                            )
                                           : "";
 
-                                      const fullError = errorMessage || shortMessage || "Unknown error";
+                                      const fullError =
+                                        errorMessage ||
+                                        shortMessage ||
+                                        "Unknown error";
 
                                       if (
-                                        fullError.toLowerCase().includes("rejected") ||
-                                        fullError.toLowerCase().includes("denied")
+                                        fullError
+                                          .toLowerCase()
+                                          .includes("rejected") ||
+                                        fullError
+                                          .toLowerCase()
+                                          .includes("denied")
                                       ) {
                                         toast.info("Transaction cancelled");
                                       } else {
-                                        toast.error(`Failed to list NFT: ${fullError}`);
-                                        console.error("Full error details:", error);
+                                        toast.error(
+                                          `Failed to list NFT: ${fullError}`,
+                                        );
+                                        console.error(
+                                          "Full error details:",
+                                          error,
+                                        );
                                       }
                                     } finally {
                                       setIsListing(false);
@@ -1241,7 +1393,6 @@ export default function NFTDetailModal({
                   }
                 })()}
               </div>
-              ;
             </div>
           </div>
         ) : (
