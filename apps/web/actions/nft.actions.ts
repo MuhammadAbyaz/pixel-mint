@@ -9,7 +9,6 @@ import { eq, desc, isNotNull, and, or } from "drizzle-orm";
 import { uploadToIPFS, uploadMetadataToIPFS } from "@/lib/ipfs";
 import { env } from "@/env";
 
-// Import NFT contract address (we'll use a constant since this is server-side)
 const NFT_CONTRACT_ADDRESS = env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS;
 
 export type NFT = {

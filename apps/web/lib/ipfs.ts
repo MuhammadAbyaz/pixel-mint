@@ -2,7 +2,6 @@
 
 import { env } from "@/env";
 
-// Pinata IPFS configuration
 const PINATA_API_KEY = env.PINATA_API_KEY || "";
 const PINATA_SECRET_KEY = env.PINATA_SECRET_KEY || "";
 const PINATA_GATEWAY =
@@ -15,9 +14,6 @@ export interface IPFSUploadResult {
   error?: string;
 }
 
-/**
- * Upload file to IPFS via Pinata
- */
 export async function uploadToIPFS(
   file: File | Buffer,
   fileName: string,
@@ -33,14 +29,12 @@ export async function uploadToIPFS(
 
     const formData = new FormData();
 
-    // Convert File to Blob if needed
     if (file instanceof File) {
       formData.append("file", file);
     } else {
       formData.append("file", new Blob([new Uint8Array(file)]), fileName);
     }
 
-    // Pinata metadata
     const metadata = JSON.stringify({
       name: fileName,
       keyvalues: {
@@ -96,9 +90,6 @@ export async function uploadToIPFS(
   }
 }
 
-/**
- * Upload JSON metadata to IPFS
- */
 export async function uploadMetadataToIPFS(metadata: {
   name: string;
   description: string;
