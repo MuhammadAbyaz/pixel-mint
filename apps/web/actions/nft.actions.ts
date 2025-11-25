@@ -816,31 +816,21 @@ export async function updateNFTCollection(
 // This combines database records with blockchain Transfer events
 export async function getPriceHistory(nftId: string) {
   try {
+    // Get all sales in chronological order (oldest first)
     const sales = await db
       .select()
       .from(nftSales)
       .where(eq(nftSales.nftId, nftId))
-      .orderBy(desc(nftSales.createdAt));
+      .orderBy(nftSales.createdAt); // ASC order
 
-    // Include the initial listing price if available
     const [nft] = await db.select().from(nfts).where(eq(nfts.id, nftId));
 
     const history = [];
 
-    // Add initial listing (from database)
-    if (nft && nft.isListed) {
-      history.push({
-        price: Number(nft.price),
-        date: nft.createdAt,
-        type: "listing",
-        transactionHash: nft.transactionHash,
-        blockNumber: nft.blockNumber,
-        blockHash: nft.blockHash,
-      });
-    }
-
-    // Add all sales (from database - these are recorded when purchases happen)
+    // Build the price history from sales data
+    // Each sale represents the price at which it was sold (which was the listing price at that time)
     sales.forEach((sale) => {
+      // Add the sale event
       history.push({
         price: Number(sale.price),
         date: sale.createdAt,
@@ -853,10 +843,29 @@ export async function getPriceHistory(nftId: string) {
       });
     });
 
-    // Note: In the future, we can also query blockchain Transfer events
-    // to get a complete history, but for now we use the database records
-    // which are updated when purchases happen
+    // If NFT is currently listed, add the current listing as the most recent event
+    // Only add if the current price is different from the last sale price (meaning it was relisted)
+    if (nft && nft.isListed) {
+      const lastSale = sales[sales.length - 1];
+      const currentPrice = Number(nft.price);
+      const lastSalePrice = lastSale ? Number(lastSale.price) : null;
 
+      // Add current listing if:
+      // 1. There are no sales yet (initial listing)
+      // 2. OR the current price is different from the last sale price (relisted at new price)
+      if (!lastSale || currentPrice !== lastSalePrice) {
+        history.push({
+          price: currentPrice,
+          date: nft.isListed, // Use the isListed timestamp (when it was listed/relisted)
+          type: "listing",
+          transactionHash: null,
+          blockNumber: null,
+          blockHash: null,
+        });
+      }
+    }
+
+    // Return in chronological order (oldest to newest)
     return history.sort((a, b) => a.date.getTime() - b.date.getTime());
   } catch (error) {
     console.error("Error getting price history:", error);

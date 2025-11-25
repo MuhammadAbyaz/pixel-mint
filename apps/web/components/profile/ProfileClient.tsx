@@ -205,8 +205,8 @@ export default function ProfileClient({
                   ? `${(creator.totalLikes / 1000).toFixed(1)}K`
                   : creator.totalLikes}
             </p>
-            {/* Wallet Address Section */}
-            {walletAddress ? (
+            {/* Wallet Address Section - Only show for owner */}
+            {isOwner && walletAddress ? (
               <div className="flex flex-col items-center gap-2 mb-4">
                 <div className="flex items-center gap-2 px-4 py-2 bg-muted rounded-lg">
                   <Wallet className="w-4 h-4 text-muted-foreground" />
@@ -258,7 +258,7 @@ export default function ProfileClient({
                   : "text-foreground/50 hover:text-foreground/75"
               }`}
             >
-              My NFTs ({nfts.length})
+              {isOwner ? "My NFTs" : "NFTs"} ({nfts.length})
               {activeTab === "nfts" && (
                 <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-foreground rounded-full animate-in slide-in-from-left duration-300" />
               )}
