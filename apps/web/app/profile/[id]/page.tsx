@@ -12,7 +12,6 @@ export default async function UserProfile({
 }) {
   const { id } = await params;
 
-  // Validate id exists and is a valid string
   if (!id || typeof id !== "string" || id.trim() === "") {
     notFound();
   }
@@ -24,21 +23,15 @@ export default async function UserProfile({
     notFound();
   }
 
-  // Fetch user's collections from database
   const dbCollections = await getUserCollections(id);
 
-  // Transform database collections to match the expected format
   const userCollections = dbCollections.map((collection) => ({
     name: collection.name,
     image: collection.image,
     slug: collection.id, // Using ID as slug for now
   }));
 
-  // Fetch user's NFTs (including those without collections)
   const userNFTs = await getUserNFTs(id);
-
-  // TODO: Fetch user's favorited collections
-  // For now, using empty array until favorites functionality is implemented
   const userFavorites: { name: string; image: string; slug: string }[] = [];
 
   return (

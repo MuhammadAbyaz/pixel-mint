@@ -60,18 +60,6 @@ export function MiniNavbar() {
     </button>
   );
 
-  const signupButtonElement = !user && (
-    <div className="relative group w-full sm:w-auto">
-      <div className="absolute inset-0 -m-2 rounded-full hidden sm:block bg-primary/40 filter blur-lg pointer-events-none transition-all duration-300 ease-out group-hover:opacity-60 group-hover:blur-xl group-hover:-m-3" />
-      <button
-        onClick={() => (window.location.href = "/auth/login")}
-        className="relative z-10 px-4 py-2 sm:px-3 text-xs sm:text-sm font-semibold text-primary-foreground bg-primary rounded-full hover:bg-primary/90 transition-all duration-200 w-full sm:w-auto cursor-pointer"
-      >
-        Sign Up
-      </button>
-    </div>
-  );
-
   const profileButton = user && Object.keys(user).length > 0 && (
     <UserDropdown user={{ ...user, initials }} />
   );
@@ -92,7 +80,6 @@ export function MiniNavbar() {
         <div className="hidden sm:flex items-center gap-2 sm:gap-3 relative">
           <ThemeToggle />
           {loginButtonElement}
-          {signupButtonElement}
           {profileButton}
         </div>
         <button
@@ -190,7 +177,6 @@ export function MiniNavbar() {
                 <ThemeToggle />
               </div>
               {loginButtonElement}
-              {signupButtonElement}
             </div>
           </>
         )}

@@ -11,15 +11,9 @@ import { createNFT, updateNFTBlockchainInfo } from "@/actions/nft.actions";
 import type { Collection } from "@/actions/collection.actions";
 import { Loader } from "@/components/ui/loader";
 import { Button } from "@/components/ui/button";
-import { getCurrentUser } from "@/actions/user.actions";
 import { isPolygonAmoyNetwork, switchToPolygonAmoy } from "@/lib/networks";
 import { getAddress } from "viem";
-import {
-  NFT_CONTRACT_ADDRESS,
-  mintNFT,
-  getPublicClient,
-  PIXEL_MINT_NFT_ABI,
-} from "@/lib/blockchain";
+import { NFT_CONTRACT_ADDRESS, mintNFT } from "@/lib/blockchain";
 
 type User = {
   id?: string;
@@ -83,7 +77,7 @@ export default function CreateNFTClient({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isMinting, setIsMinting] = useState(false);
+  const [_, setIsMinting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(
     user.walletAddress || null,
@@ -161,11 +155,6 @@ export default function CreateNFTClient({
       setImagePreview(reader.result as string);
     };
     reader.readAsDataURL(file);
-  };
-
-  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    handleImageChange(file);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -253,8 +242,6 @@ export default function CreateNFTClient({
       toast.error("Please select a collection");
       return;
     }
-
-    // Check if wallet is connected
     if (!walletAddress) {
       toast.error("Please connect your wallet first");
       await connectWallet();
@@ -265,7 +252,6 @@ export default function CreateNFTClient({
     setIsUploading(true);
 
     try {
-      // Step 1: Upload image and metadata to IPFS (this creates the NFT in database with IPFS hashes)
       const {
         success,
         error: createError,
@@ -317,8 +303,6 @@ export default function CreateNFTClient({
         return;
       }
 
-      // Step 3: Update NFT in database with blockchain info
-      // The mintResult should already have the tokenId from the simulation
       if (mintResult.transactionHash && mintResult.tokenId) {
         const updateResult = await updateNFTBlockchainInfo(
           nftId,
@@ -333,11 +317,8 @@ export default function CreateNFTClient({
             "Failed to update NFT with blockchain info:",
             updateResult.error,
           );
-          // Continue anyway - the NFT is minted on blockchain
         }
 
-        // Step 4: Automatically list NFT on marketplace contract for atomic swaps
-        // This enables atomic swaps when someone buys (payment + transfer in one transaction)
         try {
           const {
             listNFT,
@@ -356,7 +337,6 @@ export default function CreateNFTClient({
             if (walletClient && publicClient) {
               const [account] = await walletClient.getAddresses();
               if (account) {
-                // Check if marketplace is already approved
                 let needsApproval = true;
                 try {
                   const approvalCheck = await checkNFTApproval(
@@ -371,21 +351,17 @@ export default function CreateNFTClient({
                   console.warn("Could not check approval:", error);
                 }
 
-                // Step 4a: Approve marketplace if needed (one-time, ~0.01 POL)
                 if (needsApproval) {
                   toast.info(
                     "Approving marketplace (one-time, ~0.01 POL) for atomic swaps...",
                   );
                   try {
-                    // Verify contract addresses are valid
                     if (
                       !NFT_CONTRACT_ADDRESS ||
                       !MARKETPLACE_CONTRACT_ADDRESS
                     ) {
                       toast.error("Contract addresses not configured");
-                      // Continue without listing
                     } else {
-                      // Simulate the transaction first to catch errors early
                       try {
                         await publicClient.simulateContract({
                           address: NFT_CONTRACT_ADDRESS as `0x${string}`,
@@ -413,7 +389,6 @@ export default function CreateNFTClient({
                           toast.warning(
                             "Cannot approve marketplace. Listing will be skipped. You can approve and list later from the NFT details page.",
                           );
-                          // Skip listing if approval fails
                           return;
                         }
                         throw simulateError;
@@ -456,18 +431,15 @@ export default function CreateNFTClient({
                           errorMessage,
                       );
                     }
-                    // Continue - NFT is created, just not listed
                     return;
                   }
                 }
 
-                // Step 4b: Wait a moment for the mint transaction to be fully processed
                 toast.info(
                   "Waiting for mint to be confirmed before listing...",
                 );
                 await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2 seconds
 
-                // Step 4c: List NFT on marketplace contract (~0.01-0.02 POL with lazy listing)
                 toast.info(
                   "Listing NFT on marketplace (~0.01-0.02 POL). This enables atomic swaps!",
                 );
@@ -477,7 +449,6 @@ export default function CreateNFTClient({
                 );
 
                 if (listResult.success) {
-                  // Wait for transaction confirmation
                   if (listResult.transactionHash && publicClient) {
                     toast.info("Waiting for transaction confirmation...");
                     try {
@@ -521,10 +492,8 @@ export default function CreateNFTClient({
             "Failed to list NFT on marketplace (NFT still created):",
             listingError,
           );
-          // Continue - NFT is created, just not listed on marketplace
         }
       } else if (mintResult.transactionHash) {
-        // If we have transaction hash but no tokenId, still update with what we have
         toast.warning(
           "NFT minted but tokenId not available. Transaction hash saved.",
         );
@@ -550,7 +519,6 @@ export default function CreateNFTClient({
 
   const imageFile = watch("imageFile");
 
-  // Show collection selection if no collection is selected
   if (!selectedCollectionId || !selectedCollection) {
     return (
       <div className="relative min-h-screen w-full bg-background">
@@ -634,7 +602,6 @@ export default function CreateNFTClient({
     );
   }
 
-  // Show NFT creation form when collection is selected
   return (
     <div className="relative min-h-screen w-full bg-background">
       <main className="px-4 sm:px-8 lg:px-[120px] pt-[120px] pb-[100px] max-w-6xl mx-auto">
